@@ -1,0 +1,5 @@
+auth.json
+sessions/
+bin/
+*-debug.log
+node_modules/
