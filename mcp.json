@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "web-search": {
-      "url": "http://localhost:8002/mcp",
+      "url": "http://ai.ramos.codes/mcp/web-search",
       "auth": "bearer",
       "bearerTokenEnv": "LLAMA_API_KEY"
     }
