@@ -96,7 +96,7 @@ export default function (pi: ExtensionAPI) {
     if (lc.isSubtask) return;
 
     const base = event.systemPrompt ?? "";
-    const contextLimit: number = lc.contextLimit ?? 8192;
+    const contextLimit: number = lc.contextLimit ?? 262144;
     if (estimateTokens(base) > contextLimit * 0.4) return;
 
     const prompt = event.prompt ?? "";
