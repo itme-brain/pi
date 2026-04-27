@@ -1,0 +1,22 @@
+{
+  "providers": {
+    "llamacpp": {
+      "baseUrl": "https://ai.ramos.codes/v1",
+      "api": "openai-completions",
+      "apiKey": "LLAMACPP_API_KEY",
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false
+      },
+      "models": [
+        {
+          "id": "Qwen3.6-27B-Q4_K_M.gguf",
+          "name": "Qwen3.6 27B Q4_K_M (ramos.codes)",
+          "contextWindow": 262144,
+          "maxTokens": 4096,
+          "reasoning": true
+        }
+      ]
+    }
+  }
+}

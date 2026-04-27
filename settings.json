@@ -1,3 +1,22 @@
 {
-  "lastChangelogVersion": "0.68.1"
+  "enableInstallTelemetry": false,
+  "compaction": {
+    "enabled": true
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 2
+  },
+  "lastChangelogVersion": "0.70.5",
+  "images": {
+    "autoResize": true
+  },
+  "transport": "websocket",
+  "collapseChangelog": true,
+  "doubleEscapeAction": "tree",
+  "treeFilterMode": "default",
+  "theme": "dark",
+  "packages": [
+    "npm:pi-mcp-adapter"
+  ]
 }
