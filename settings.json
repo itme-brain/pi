@@ -17,5 +17,7 @@
   "theme": "dark",
   "packages": [
     "npm:pi-mcp-adapter"
-  ]
+  ],
+  "defaultProvider": "llamacpp",
+  "defaultModel": "local"
 }

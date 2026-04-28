@@ -1,0 +1,13 @@
+{
+  "name": "pi-skill-inject",
+  "version": "0.1.0",
+  "description": "Selects per-tool skill guidance and injects into the system prompt.",
+  "dependencies": {
+    "gray-matter": "4.0.3"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

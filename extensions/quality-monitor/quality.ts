@@ -56,8 +56,7 @@ export function buildCorrectionMessage(reason: string): string {
       "Your previous response was empty. Please respond with either " +
       "text or a tool call to make progress on the task.",
     empty_tool_name:
-      "Your tool call had an empty name. Please specify a valid tool name. " +
-      "Available tools include: Read, Write, Edit, Bash, Glob, Grep.",
+      "Tool name was empty. Use one of: read, write, edit, bash, grep, find, ls, glob.",
     repeated_tool_call:
       "You just made the exact same tool call as your previous turn. " +
       "This suggests you may be stuck in a loop. Please try a different " +
@@ -68,8 +67,7 @@ export function buildCorrectionMessage(reason: string): string {
     const toolName = reason.slice("unknown_tool:".length);
     return (
       `Tool '${toolName}' does not exist. ` +
-      "Available tools are: Read, Write, Edit, Bash, Glob, Grep, " +
-      "WebFetch, WebSearch. Please use one of these."
+      "Available tools: read, write, edit, bash, grep, find, ls, glob."
     );
   }
   if (reason.startsWith("malformed_args:")) {

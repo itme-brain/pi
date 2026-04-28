@@ -175,49 +175,61 @@ function extractSignature(source: string, node: Tree["rootNode"]): string | unde
   return sig || undefined;
 }
 
-function getLeadingComment(source: string, node: Tree["rootNode"]): string | null {
-  const startLine = node.startPosition.row;
-  const lines = source.split("\n");
-  let commentLines: string[] = [];
-  for (let i = startLine - 1; i >= 0 && i >= startLine - 5; i--) {
-    const line = lines[i] ?? "";
-    const trimmed = line.trim();
-    if (trimmed === "") break;
-    if (trimmed.startsWith("//") || trimmed.startsWith("#") || trimmed.startsWith("/*") || trimmed.startsWith("*")) {
-      commentLines.unshift(trimmed);
-    } else {
-      break;
-    }
+function isCommentNode(t: string): boolean {
+  return t === "comment" || t === "line_comment" || t === "block_comment";
+}
+
+// Walk up through wrappers (export_statement, decorated_definition) so that
+// `previousSibling` looks at the correct level — leading comments sit beside
+// the outermost wrapper, not the inner declaration.
+function commentAnchor(node: Tree["rootNode"]): Tree["rootNode"] {
+  let anchor = node;
+  while (
+    anchor.parent &&
+    (anchor.parent.type === "export_statement" || anchor.parent.type === "decorated_definition")
+  ) {
+    anchor = anchor.parent;
   }
+  return anchor;
+}
 
-  if (commentLines.length === 0) return null;
+function getLeadingComment(node: Tree["rootNode"]): string | null {
+  const anchor = commentAnchor(node);
+  const blocks: string[] = [];
+  let nextStartRow = anchor.startPosition.row;
+  let prev = anchor.previousSibling;
+  while (prev && isCommentNode(prev.type)) {
+    // Require the comment to be adjacent (no blank-line gap) to the next block.
+    if (nextStartRow - prev.endPosition.row > 1) break;
+    blocks.unshift(prev.text);
+    nextStartRow = prev.startPosition.row;
+    prev = prev.previousSibling;
+  }
+  if (blocks.length === 0) return null;
 
-  // Clean comment markers: //, /*, *, #, and trailing */
-  // JSDoc multi-line: /** ... * text ... */
-  // Single line: // or # or /* */
-  const cleaned = commentLines
+  const cleaned = blocks
+    .flatMap((block) => block.split("\n"))
     .map((l) => l.trim())
-    // Drop empty opener (/**) and closer (*/)
     .filter((l) => l !== "" && l !== "/**" && l !== "/*" && l !== "*/")
-    // Strip leading comment markers: * , ///, //, #, /*
-    .map((l) => l.replace(/^(\*\s*|\/\/\/\s*|\/\/\s*|#\s*|\/\*\s*)/, ""))
+    .map((l) =>
+      l
+        .replace(/^(\*\s*|\/\/\/\s*|\/\/\s*|#\s*|\/\*\*?\s*)/, "")
+        .replace(/\s*\*\/\s*$/, ""),
+    )
     .join("\n")
     .trim();
 
   return cleaned || null;
 }
 
-let sourceCache = "";
-
 function isExported(node: Tree["rootNode"]): boolean {
   const parent = node.parent;
-  if (!parent) return false;
-  if (parent.type === "export_statement") return true;
+  if (parent?.type === "export_statement") return true;
 
-  const textBefore = node.startIndex > 0
-    ? sourceCache.slice(Math.max(0, node.startIndex - 10), node.startIndex)
-    : "";
-  if (textBefore.includes("pub")) return true;
+  // Rust: visibility_modifier child wraps `pub`, `pub(crate)`, `pub(super)`, etc.
+  for (const child of node.children) {
+    if (child.type === "visibility_modifier") return true;
+  }
 
   return false;
 }
@@ -254,7 +266,6 @@ export async function extractSymbols(
   tree: Tree,
   filePath: string,
 ): Promise<SymbolInfo[]> {
-  sourceCache = source;
   const symbols: SymbolInfo[] = [];
 
   function walk(node: Tree["rootNode"]) {
@@ -281,7 +292,7 @@ export async function extractSymbols(
         endColumn: node.endPosition.column,
       },
       signature: extractSignature(source, node),
-      docstring: getLeadingComment(source, node) ?? undefined,
+      docstring: getLeadingComment(node) ?? undefined,
       visibility: "public",
       parent: getParentName(node) ?? undefined,
       isExported: isExported(node),

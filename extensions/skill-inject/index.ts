@@ -27,20 +27,16 @@ let lastFailedTool: string | null = null;
 
 // ── Intent keywords → likely tools (exact port of _INTENT_MAP) ──────────
 const INTENT_MAP: Record<string, string[]> = {
-  read: ["Read"], show: ["Read"], view: ["Read"], cat: ["Read"],
-  write: ["Write"], create: ["Write", "Bash"],
-  implement: ["Write", "Read"], code: ["Write", "Read"],
-  function: ["Write", "Edit"], class: ["Write", "Edit"],
-  edit: ["Edit"], change: ["Edit"], modify: ["Edit"],
-  fix: ["Edit"], update: ["Edit"], replace: ["Edit"],
-  add: ["Edit", "Write"], refactor: ["Edit", "Read"],
-  run: ["Bash"], execute: ["Bash"], install: ["Bash"],
-  build: ["Bash"], test: ["Bash"],
-  find: ["Glob", "Grep"], search: ["Grep"],
-  grep: ["Grep"], glob: ["Glob"],
-  fetch: ["WebFetch"], download: ["WebFetch"], url: ["WebFetch"],
-  web: ["WebSearch"],
-  agent: ["Agent"], delegate: ["Agent"], spawn: ["Agent"],
+  read: ["read"], show: ["read"], view: ["read"], cat: ["read"],
+  implement: ["read", "edit"], code: ["read", "edit"],
+  function: ["edit"], class: ["edit"],
+  edit: ["edit"], change: ["edit"], modify: ["edit"],
+  fix: ["edit"], update: ["edit"], replace: ["edit"],
+  refactor: ["edit", "read"],
+  run: ["bash"], execute: ["bash"], install: ["bash"],
+  build: ["bash"], test: ["bash"],
+  find: ["glob", "grep"], search: ["grep"],
+  grep: ["grep"], glob: ["glob"],
 };
 
 function skillsDir(): string {

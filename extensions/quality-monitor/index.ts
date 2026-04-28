@@ -1,13 +1,10 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { assessResponse, buildCorrectionMessage, type ToolCall } from "./quality.ts";
 
-// Port of local/quality.py. Hooks turn_end, inspects the assistant message
-// + previous turn's tool calls, and — if we detect a failure mode — queues
-// a correction user message via session.followUp() so the model gets a
-// chance to recover on its next turn.
+// Hooks turn_end, inspects the assistant message + previous turn's tool calls,
+// and — if we detect a failure mode — queues a correction user message via
+// pi.sendUserMessage so the model gets a chance to recover on its next turn.
 
-// Session-scoped state. Pi reuses extensions across turns within a session;
-// a fresh extension instance is loaded per session via the session lifecycle.
 let previousToolCalls: ToolCall[] = [];
 let consecutiveFailures = 0;
 const MAX_CONSECUTIVE_CORRECTIONS = 2; // stop nudging after 2 failed corrections

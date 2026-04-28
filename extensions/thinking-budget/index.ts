@@ -1,21 +1,10 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-// Port of the thinking-budget cap + partial-trace reuse logic from
-// providers.py. little-coder's Python implementation aborts the stream
-// mid-flight when thinking tokens cross the budget, re-injects the partial
-// trace as assistant context, and retries with thinking disabled. Pi's
-// AgentSession doesn't expose mid-stream abort-and-replace, so we implement
-// the between-turn fallback documented in the plan:
-//
-//  1. Count thinking_delta tokens during message_update
-//  2. On budget exceed, call ctx.abort() to end the turn
-//  3. On turn_end after abort, flip thinking level to "off" and queue a
-//     correction follow-up nudging the model to commit to an implementation
-//
-// The behavioral effect matches the whitepaper's claim that the budget cap
-// "forces the model out of open-ended deliberation and back into committing
-// to an implementation" — the concrete savings of preserving the partial
-// trace are lost, but the commit-to-action pressure is the same.
+// Implements between-turn fallback for thinking-budget cap:
+//   1. Count thinking_delta tokens during message_update
+//   2. On budget exceed, call ctx.abort() to end the turn
+//   3. On turn_end after abort, flip thinking to "off" and nudge the model
+//      to commit to an implementation
 
 const DEFAULT_BUDGET = 2048;
 

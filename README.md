@@ -18,7 +18,7 @@ Required env vars:
 ## Layout
 
 ```
-extensions/   curated from little-coder — small-model survival kit
+extensions/   small-model survival kit
 skills/       protocols/ + tools/ guidance
 mcp.json      web-search MCP server config
 models.json   custom llamacpp provider
@@ -32,6 +32,6 @@ settings.json pi settings
 | `write-guard` | Refuses whole-file rewrites; forces Edit |
 | `quality-monitor` | Detects loops/hallucinations, queues self-correction |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
-| `turn-cap` | Hard turn limit per agent run |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |
 | `knowledge-inject` | Loads `skills/protocols/*.md` based on relevance |
+| `symbols` | Tree-sitter codebase navigation; `/explore` activates the full toolset |

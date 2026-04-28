@@ -20,19 +20,9 @@ export default function (pi: ExtensionAPI) {
     async execute(_id, { file_path, content }) {
       if (existsSync(file_path)) {
         const recipe =
-          `Error: Write refused — ${file_path} already exists.\n` +
-          `\n` +
-          `Write is only for creating NEW files. To change an existing file, use Edit:\n` +
-          `  {"name": "Edit", "input": {"file_path": "${file_path}", ` +
-          `"old_string": "<exact text currently in the file>", ` +
-          `"new_string": "<replacement text>"}}\n` +
-          `\n` +
-          `If you do not already know the file's current content, Read it first to ` +
-          `get the exact text for old_string. Include enough surrounding context ` +
-          `(2-3 lines) to make old_string unique in the file.\n` +
-          `\n` +
-          `For multiple changes, emit multiple Edit calls — one per location. Do NOT ` +
-          `retry Write; it will be refused again.`;
+          `Error: write refused — ${file_path} exists. Use edit:\n` +
+          `  {"name": "edit", "input": {"file_path": "${file_path}", "old_string": "...", "new_string": "..."}}\n` +
+          `Read the file first if you do not have its current content. Do NOT retry write.`;
         return {
           content: [{ type: "text", text: recipe }],
           details: {},

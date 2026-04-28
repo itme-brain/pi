@@ -9,16 +9,22 @@
  *   - project_overview  : High-level summary of codebase structure
  */
 
+import { execFile } from "node:child_process";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
+import { promisify } from "node:util";
+
+const execFileP = promisify(execFile);
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import { extractFileSymbols, getLanguageForFile, type SymbolInfo } from "./parser.js";
 
 // --- Cache ---
+//
+// Cache lives at <project-root>/.cache/pi-symbols/meta.json.
+// Project root is the nearest ancestor containing .git (falls back to cwd).
+// Resolved lazily on first tool call since ctx.cwd isn't available in session_start.
 
-const CACHE_DIR = join(process.env.HOME ?? "", ".pi", "agent", "symbols-cache");
-const CACHE_META_FILE = join(CACHE_DIR, "meta.json");
 const CACHE_VERSION = 3;
 
 interface CacheMeta {
@@ -28,10 +34,34 @@ interface CacheMeta {
 }
 
 let cacheMeta: CacheMeta | null = null;
+let projectRoot: string | null = null;
+let cacheLoaded = false;
 
-async function loadCache(): Promise<void> {
+async function findProjectRoot(cwd: string): Promise<string> {
+  let current = resolve(cwd);
+  while (true) {
+    try {
+      await stat(join(current, ".git"));
+      return current;
+    } catch {
+      // .git not found at this level
+    }
+    const parent = dirname(current);
+    if (parent === current) return resolve(cwd);
+    current = parent;
+  }
+}
+
+function cacheFilePath(root: string): string {
+  return join(root, ".cache", "pi-symbols", "meta.json");
+}
+
+async function ensureCacheLoaded(cwd: string): Promise<void> {
+  if (cacheLoaded) return;
+  cacheLoaded = true;
+  projectRoot = await findProjectRoot(cwd);
   try {
-    const raw = await readFile(CACHE_META_FILE, "utf-8");
+    const raw = await readFile(cacheFilePath(projectRoot), "utf-8");
     const parsed = JSON.parse(raw) as CacheMeta;
     cacheMeta = parsed.version === CACHE_VERSION ? parsed : null;
   } catch {
@@ -40,8 +70,10 @@ async function loadCache(): Promise<void> {
 }
 
 async function saveCache(): Promise<void> {
-  await mkdir(CACHE_DIR, { recursive: true });
-  await writeFile(CACHE_META_FILE, JSON.stringify(cacheMeta, null, 2), "utf-8");
+  if (!projectRoot) return;
+  const file = cacheFilePath(projectRoot);
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, JSON.stringify(cacheMeta, null, 2), "utf-8");
 }
 
 // --- File discovery ---
@@ -140,10 +172,6 @@ function clampMaxLines(value: number | undefined): number {
 // --- Extension ---
 
 export default function (pi: ExtensionAPI) {
-  pi.on("session_start", async () => {
-    await loadCache();
-  });
-
   pi.on("agent_end", async () => {
     if (cacheMeta && Object.keys(cacheMeta.files).length > 0) {
       cacheMeta.scannedAt = Date.now();
@@ -213,6 +241,7 @@ export default function (pi: ExtensionAPI) {
       root: Type.Optional(Type.String()),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      await ensureCacheLoaded(ctx.cwd);
       const cwd = resolveRoot(ctx.cwd, params.root);
       const query = (params.query ?? "").toLowerCase();
       const kindFilter = params.kind?.toLowerCase();
@@ -272,14 +301,17 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "symbol_info",
     label: "Symbol Info",
-    description: "Show symbol details.",
+    description: "Show symbol details; references=true for call sites.",
     promptSnippet: "Show symbol info",
     parameters: Type.Object({
       name: Type.String(),
       path: Type.Optional(Type.String()),
       root: Type.Optional(Type.String()),
+      references: Type.Optional(Type.Boolean()),
+      maxReferences: Type.Optional(Type.Number()),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      await ensureCacheLoaded(ctx.cwd);
       const cwd = resolveRoot(ctx.cwd, params.root);
       const query = params.name.toLowerCase();
 
@@ -322,9 +354,65 @@ export default function (pi: ExtensionAPI) {
         if (sym.docstring) lines.push(`doc: ${sym.docstring.slice(0, 300)}`);
       }
 
+      let refs: Array<{ path: string; line: number; text: string }> = [];
+      if (params.references) {
+        const maxRefs = Math.max(1, Math.min(200, params.maxReferences ?? 20));
+        const defLines = new Map<string, Set<number>>();
+        for (const sym of allSymbols) {
+          const set = defLines.get(sym.path) ?? new Set();
+          set.add(sym.range.startLine);
+          defLines.set(sym.path, set);
+        }
+
+        let rgStdout: string | null = null;
+        let rgError: string | null = null;
+        try {
+          const result = await execFileP("rg", [
+            "--json",
+            "--fixed-strings",
+            "--word-regexp",
+            `--max-count=${maxRefs}`,
+            params.name,
+            cwd,
+          ], { maxBuffer: 8 * 1024 * 1024 });
+          rgStdout = result.stdout;
+        } catch (err: any) {
+          if (err?.code === "ENOENT") rgError = "rg not on PATH";
+          else if (err?.code === 1) rgStdout = err?.stdout ?? "";
+          else rgError = String(err?.message ?? err);
+        }
+
+        if (rgError) {
+          lines.push(`\nReferences unavailable: ${rgError}.`);
+        } else if (rgStdout !== null) {
+          for (const rawLine of rgStdout.split("\n")) {
+            if (!rawLine) continue;
+            let evt: any;
+            try { evt = JSON.parse(rawLine); } catch { continue; }
+            if (evt.type !== "match") continue;
+            const path = evt.data?.path?.text;
+            const lineNo = evt.data?.line_number;
+            const text = evt.data?.lines?.text;
+            if (typeof path !== "string" || typeof lineNo !== "number" || typeof text !== "string") continue;
+            if (defLines.get(path)?.has(lineNo)) continue;
+            refs.push({ path, line: lineNo, text: text.replace(/\r?\n$/, "").trim().slice(0, 200) });
+            if (refs.length >= maxRefs) break;
+          }
+
+          if (refs.length === 0) {
+            lines.push(`\nNo references found.`);
+          } else {
+            lines.push(`\n${refs.length} reference(s)${refs.length >= maxRefs ? " (capped)" : ""}:`);
+            for (const ref of refs) {
+              lines.push(`${relative(cwd, ref.path)}:${ref.line} ${ref.text}`);
+            }
+          }
+        }
+      }
+
       return {
         content: [{ type: "text", text: lines.join("\n") }],
-        details: { name: params.name, matches: allSymbols },
+        details: { name: params.name, matches: allSymbols, references: refs },
       };
     },
   });
@@ -343,6 +431,7 @@ export default function (pi: ExtensionAPI) {
       root: Type.Optional(Type.String()),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      await ensureCacheLoaded(ctx.cwd);
       const cwd = resolveRoot(ctx.cwd, params.root);
       const query = params.name.toLowerCase();
       const maxLines = clampMaxLines(params.maxLines);
@@ -406,6 +495,7 @@ export default function (pi: ExtensionAPI) {
       root: Type.Optional(Type.String()),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      await ensureCacheLoaded(ctx.cwd);
       const cwd = resolveRoot(ctx.cwd, params.root);
       const langCounts = new Map<string, number>();
       const kindCounts = new Map<string, number>();
@@ -452,6 +542,46 @@ export default function (pi: ExtensionAPI) {
         content: [{ type: "text", text: lines.join("\n") }],
         details: { totalFiles, totalSymbols, languages: Object.fromEntries(langCounts), kinds: Object.fromEntries(kindCounts) },
       };
+    },
+  });
+
+  // --- Lazy activation: only search_symbols + project_overview are always
+  // visible to the model. The other three become available once any symbols
+  // tool fires (sticky), so once you're in a code session there's no churn.
+  // /explore force-activates the full set and kicks off a discovery turn.
+
+  const SYMBOL_TOOL_NAMES = ["file_symbols", "search_symbols", "symbol_info", "symbol_source", "project_overview"];
+  const ALWAYS_ON_SYMBOL_NAMES = ["search_symbols", "project_overview"];
+
+  let stickyActive = false;
+
+  pi.on("session_start", async () => {
+    stickyActive = false;
+  });
+
+  pi.on("before_agent_start", async () => {
+    const current: any[] = pi.getActiveTools();
+    const currentNames = current
+      .map((t) => (typeof t === "string" ? t : t?.name))
+      .filter((n): n is string => typeof n === "string");
+    const others = currentNames.filter((n) => !SYMBOL_TOOL_NAMES.includes(n));
+    const symbols = stickyActive ? SYMBOL_TOOL_NAMES : ALWAYS_ON_SYMBOL_NAMES;
+    pi.setActiveTools([...others, ...symbols]);
+  });
+
+  pi.on("tool_execution_start", async (event) => {
+    const name = (event as any).toolName;
+    if (typeof name === "string" && SYMBOL_TOOL_NAMES.includes(name)) {
+      stickyActive = true;
+    }
+  });
+
+  pi.registerCommand("explore", {
+    description: "Explore the codebase with symbols tools",
+    handler: async (_args, ctx) => {
+      stickyActive = true;
+      ctx.ui.notify("symbols tools active", "info");
+      pi.sendUserMessage("Explore this codebase. Use the symbols tools.");
     },
   });
 }
