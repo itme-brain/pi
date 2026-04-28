@@ -4,3 +4,4 @@ bin/
 mcp-cache.json
 *-debug.log
 node_modules/
+symbols-cache

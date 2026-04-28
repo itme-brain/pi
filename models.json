@@ -11,7 +11,7 @@
       "models": [
         {
           "id": "local",
-          "name": "ramos.codes (current loaded model)",
+          "name": "ai.ramos.codes",
           "contextWindow": 262144,
           "maxTokens": 4096,
           "reasoning": true

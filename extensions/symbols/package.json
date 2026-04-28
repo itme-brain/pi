@@ -1,0 +1,15 @@
+{
+  "name": "pi-symbols",
+  "version": "0.1.0",
+  "description": "Navigate codebases via tree-sitter symbols — functions, classes, methods, imports with signatures and docstrings",
+  "dependencies": {
+    "@vscode/tree-sitter-wasm": "0.3.1",
+    "tree-sitter-c": "0.24.1",
+    "web-tree-sitter": "0.26.8"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
