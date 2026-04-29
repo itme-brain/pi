@@ -10,17 +10,26 @@ let consecutiveFailures = 0;
 const MAX_CONSECUTIVE_CORRECTIONS = 2; // stop nudging after 2 failed corrections
 
 export default function (pi: ExtensionAPI) {
-  // Populate the known-tools set lazily by observing tool_execution events.
-  // This avoids needing to read pi's tool registry directly.
+  // Seed from Pi's registry so the first use of a valid tool is not flagged as
+  // unknown if execution is interrupted before we observe lifecycle events.
   const knownTools = new Set<string>();
+  const refreshKnownTools = (): void => {
+    for (const tool of pi.getAllTools()) knownTools.add(tool.name);
+  };
+
+  pi.on("session_start", async () => {
+    refreshKnownTools();
+    previousToolCalls = [];
+    consecutiveFailures = 0;
+  });
+
+  pi.on("before_agent_start", async () => {
+    refreshKnownTools();
+  });
+
   pi.on("tool_execution_start", async (event) => {
     const name = (event as any).toolName;
     if (typeof name === "string") knownTools.add(name);
-  });
-
-  pi.on("session_start", async () => {
-    previousToolCalls = [];
-    consecutiveFailures = 0;
   });
 
   pi.on("turn_end", async (event, ctx) => {

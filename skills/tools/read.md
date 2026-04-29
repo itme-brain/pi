@@ -3,7 +3,7 @@ name: read-guidance
 type: tool-guidance
 target_tool: read
 priority: 10
-token_cost: 60
+token_cost: 55
 user-invocable: false
 ---
-Read a file with line numbers (format: "N\tline"). Always use absolute paths. For large files, paginate with limit+offset in 100-200 line chunks. Never read whole log files — they flood context. Use Grep to find lines, then read a small window.
+Use read for targeted file inspection after search narrows the path or symbol. Avoid whole large files and logs; search first, then read only the relevant window. Use offsets only when genuinely continuing a needed source file.

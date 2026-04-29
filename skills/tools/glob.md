@@ -6,4 +6,4 @@ priority: 8
 token_cost: 35
 user-invocable: false
 ---
-Find files by glob pattern. `**` for recursive matching across subdirectories; plain wildcards for one directory. Returns sorted absolute paths.
+Use glob/find to discover files by path pattern before reading. Prefer narrow patterns and avoid recursively inspecting large generated, vendor, or binary-heavy trees.

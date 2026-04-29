@@ -29,8 +29,8 @@ settings.json pi settings
 
 | | |
 |---|---|
-| `write-guard` | Refuses whole-file rewrites; forces Edit |
 | `quality-monitor` | Detects loops/hallucinations, queues self-correction |
+| `write-policy` | Keeps write new-file-only and adds append for existing docs |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |
 | `knowledge-inject` | Loads `skills/protocols/*.md` based on relevance |

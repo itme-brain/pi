@@ -6,4 +6,4 @@ priority: 8
 token_cost: 50
 user-invocable: false
 ---
-Regex search via ripgrep. Use `include` to scope by file type instead of grepping the whole tree. For triage, prefer one broad alternation (e.g. `panic|error|fail`) over many narrow searches.
+Use grep/search to narrow before reading. Scope by directory or file type when possible. For triage, prefer one broad alternation such as `panic|error|fail` over many separate searches.
