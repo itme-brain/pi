@@ -9,7 +9,8 @@
   },
   "lastChangelogVersion": "0.70.5",
   "images": {
-    "autoResize": true
+    "autoResize": true,
+    "blockImages": true
   },
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
@@ -20,5 +21,8 @@
   ],
   "defaultProvider": "llamacpp",
   "defaultModel": "local",
-  "defaultThinkingLevel": "off"
+  "defaultThinkingLevel": "low",
+  "terminal": {
+    "showTerminalProgress": false
+  }
 }

@@ -13,6 +13,7 @@
           "id": "local",
           "name": "ai.ramos.codes",
           "contextWindow": 262144,
+          "maxTokens": 32768,
           "reasoning": true
         }
       ]
