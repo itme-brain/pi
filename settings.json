@@ -7,7 +7,7 @@
     "enabled": true,
     "maxRetries": 2
   },
-  "lastChangelogVersion": "0.70.5",
+  "lastChangelogVersion": "0.72.1",
   "images": {
     "autoResize": true,
     "blockImages": true
