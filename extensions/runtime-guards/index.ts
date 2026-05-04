@@ -1,8 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { hiddenSteer, isHiddenSteerMessage } from "../_shared/steer.ts";
 
-const TOOL_RESULT_CHAR_LIMIT = 6000;
-const CONTEXT_TOOL_RESULT_CHAR_LIMIT = 2000;
 const MAX_GUARD_STEERS_PER_PROMPT = 4;
 
 const INSPECTION_TOOLS = new Set([
@@ -26,46 +24,6 @@ let needsVerification = false;
 let verificationSteered = false;
 let deliveredHiddenSteers = new Set<string>();
 const errorCounts = new Map<string, number>();
-
-function textContentLength(content: any): number {
-  if (!Array.isArray(content)) return typeof content === "string" ? content.length : 0;
-  return content.reduce((sum, part) => sum + (part?.type === "text" ? String(part.text ?? "").length : 0), 0);
-}
-
-function trimTextContent(content: any, limit: number): any {
-  if (!Array.isArray(content)) return content;
-
-  let remaining = limit;
-  let truncated = false;
-  const next = [];
-  for (const part of content) {
-    if (part?.type !== "text") {
-      next.push(part);
-      continue;
-    }
-    const text = String(part.text ?? "");
-    if (remaining <= 0) {
-      truncated = true;
-      continue;
-    }
-    if (text.length <= remaining) {
-      next.push(part);
-      remaining -= text.length;
-      continue;
-    }
-    next.push({ ...part, text: text.slice(0, remaining) });
-    remaining = 0;
-    truncated = true;
-  }
-
-  if (truncated) {
-    next.push({
-      type: "text",
-      text: `\n[runtime-guard: tool output truncated to ${limit} characters; narrow the query if more detail is needed]`,
-    });
-  }
-  return next;
-}
 
 function steerOnce(pi: ExtensionAPI, reason: string, content: string): void {
   if (guardSteersThisPrompt >= MAX_GUARD_STEERS_PER_PROMPT) return;
@@ -138,12 +96,6 @@ export default function (pi: ExtensionAPI) {
       }
     }
 
-    if (textContentLength((event as any).content) <= TOOL_RESULT_CHAR_LIMIT) return;
-    steerOnce(pi, "large-output", "A tool returned broad output. Narrow the query instead of consuming more context.");
-    return {
-      content: trimTextContent((event as any).content, TOOL_RESULT_CHAR_LIMIT),
-      details: { ...(((event as any).details ?? {}) as object), runtimeGuardTruncated: true },
-    };
   });
 
   pi.on("agent_end", async () => {
@@ -177,11 +129,6 @@ export default function (pi: ExtensionAPI) {
           changed = true;
           return [{ ...message, content }];
         }
-      }
-
-      if (message?.role === "toolResult" && textContentLength(message.content) > CONTEXT_TOOL_RESULT_CHAR_LIMIT) {
-        changed = true;
-        return [{ ...message, content: trimTextContent(message.content, CONTEXT_TOOL_RESULT_CHAR_LIMIT) }];
       }
 
       return [message];
