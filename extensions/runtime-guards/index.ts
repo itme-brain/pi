@@ -1,6 +1,10 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { existsSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { extname, isAbsolute, relative, resolve } from "node:path";
 import { hiddenSteer, isHiddenSteerMessage } from "../_shared/steer.ts";
 
+const LARGE_READ_BYTES = 50 * 1024;
 const TOOL_RESULT_CHAR_LIMIT = 6000;
 const CONTEXT_TOOL_RESULT_CHAR_LIMIT = 2000;
 const MAX_GUARD_STEERS_PER_PROMPT = 4;
@@ -86,6 +90,38 @@ function errorAdvice(toolName: string): string {
   }
 }
 
+function resolveForGuard(cwd: string, path: string): string {
+  const withoutAt = path.startsWith("@") ? path.slice(1) : path;
+  const expanded = withoutAt === "~"
+    ? homedir()
+    : withoutAt.startsWith("~/")
+      ? homedir() + withoutAt.slice(1)
+      : withoutAt;
+  return isAbsolute(expanded) ? expanded : resolve(cwd, expanded);
+}
+
+function largeReadReason(input: any, cwd: string): string | null {
+  if (!input || typeof input.path !== "string" || input.path.length === 0) return null;
+  if (typeof input.limit === "number") return null;
+
+  const absolute = resolveForGuard(cwd, input.path);
+  if (!existsSync(absolute)) return null;
+
+  let stat;
+  try {
+    stat = statSync(absolute);
+  } catch {
+    return null;
+  }
+  if (!stat.isFile()) return null;
+
+  const ext = extname(absolute).toLowerCase();
+  const isLog = ext === ".log" || ext === ".out" || ext === ".err";
+  if (!isLog && stat.size <= LARGE_READ_BYTES) return null;
+
+  return `${relative(cwd, absolute) || input.path} is ${stat.size} bytes. Search first, or read a small offset/limit window.`;
+}
+
 function hiddenSteerKey(message: any): string {
   return `${message.timestamp ?? ""}:${message.content ?? ""}`;
 }
@@ -105,6 +141,13 @@ export default function (pi: ExtensionAPI) {
     guardSteersThisPrompt = 0;
     inspectionStreak = 0;
     inspectionSteered = false;
+  });
+
+  pi.on("tool_call", async (event, ctx) => {
+    if ((event as any).toolName !== "read") return;
+    const reason = largeReadReason((event as any).input, ctx.cwd);
+    if (!reason) return;
+    return { block: true, reason };
   });
 
   pi.on("tool_result", async (event, _ctx) => {
