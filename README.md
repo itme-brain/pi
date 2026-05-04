@@ -29,7 +29,7 @@ settings.json pi settings
 
 | | |
 |---|---|
-| `runtime-guards` | Broad-read blocking, hidden steers, and context pruning for local-model failure modes |
+| `runtime-guards` | Hidden steers and context pruning for local-model failure modes |
 | `quality-monitor` | Detects loops/hallucinations, steers hidden self-correction into the next model call |
 | `write-policy` | Keeps write new-file-only and adds append for existing docs |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
