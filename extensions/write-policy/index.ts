@@ -1,7 +1,11 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { withFileMutationQueue } from "@mariozechner/pi-coding-agent";
+import {
+  isToolCallEventType,
+  isWriteToolResult,
+  withFileMutationQueue,
+} from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
 
@@ -30,6 +34,15 @@ function resolvePath(cwd: string, path: string): string {
   return resolve(cwd, normalized);
 }
 
+function mutationPathKey(path: string): string {
+  const absolutePath = resolve(path);
+  try {
+    return realpathSync.native(absolutePath);
+  } catch {
+    return absolutePath;
+  }
+}
+
 function isAppendableDocument(path: string): boolean {
   const base = basename(path);
   const root = base.split(".")[0].toUpperCase();
@@ -37,13 +50,22 @@ function isAppendableDocument(path: string): boolean {
 }
 
 export default function (pi: ExtensionAPI) {
+  // A successful write that passed the new-file preflight can be rewritten later in the same session.
+  const createdByWritePaths = new Set<string>();
+  const pendingWriteCreations = new Map<string, string>();
+
+  pi.on("session_start", async () => {
+    createdByWritePaths.clear();
+    pendingWriteCreations.clear();
+  });
+
   pi.registerTool({
     name: "append",
     label: "Append",
     description: "Append content to an existing documentation/text file. Use write for new files and edit for precise changes.",
     promptSnippet: "Append content to existing documentation/text files",
     promptGuidelines: [
-      "Use append to add sections to an existing document; use write only for new files.",
+      "Use append to add sections to an existing document; use write only for new files or files created by write in this session.",
     ],
     parameters: Type.Object({
       path: Type.String({ description: "Path to an existing documentation/text file" }),
@@ -90,17 +112,39 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    if (event.toolName !== "write") return;
+    if (!isToolCallEventType("write", event)) return;
 
-    const path = (event.input as { path?: unknown }).path;
+    const path = event.input.path;
     if (typeof path !== "string" || path.length === 0) return;
 
     const absolutePath = resolvePath(ctx.cwd, path);
-    if (!existsSync(absolutePath)) return;
+    const key = mutationPathKey(absolutePath);
+    if (createdByWritePaths.has(key)) return;
+    if (!existsSync(absolutePath)) {
+      pendingWriteCreations.set(event.toolCallId, absolutePath);
+      return;
+    }
 
     return {
       block: true,
-      reason: "write is only for new files. Use edit for precise existing-file changes, or append to add sections to an existing document.",
+      reason: [
+        "write is only for new files or files created by write in this session.",
+        "Use edit for precise existing-file changes, or append to add sections to an existing document.",
+      ].join(" "),
     };
+  });
+
+  pi.on("tool_result", async (event, ctx) => {
+    if (!isWriteToolResult(event)) return;
+
+    const pendingPath = pendingWriteCreations.get(event.toolCallId);
+    pendingWriteCreations.delete(event.toolCallId);
+    if (event.isError) return;
+
+    const path = pendingPath ??
+      (typeof event.input.path === "string" ? resolvePath(ctx.cwd, event.input.path) : undefined);
+    if (!path) return;
+
+    createdByWritePaths.add(mutationPathKey(path));
   });
 }
