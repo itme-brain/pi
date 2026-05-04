@@ -29,9 +29,11 @@ settings.json pi settings
 
 | | |
 |---|---|
-| `quality-monitor` | Detects loops/hallucinations, steers self-correction into the next model call |
+| `small-model` | Hidden steers and context pruning for local-model failure modes |
+| `quality-monitor` | Detects loops/hallucinations, steers hidden self-correction into the next model call |
 | `write-policy` | Keeps write new-file-only and adds append for existing docs |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |
 | `knowledge-inject` | Loads `skills/protocols/*.md` based on relevance |
+| `glob` | Bounded file glob with broad-search steering |
 | `symbols` | Tree-sitter codebase navigation; `/explore` activates the full toolset |
