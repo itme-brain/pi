@@ -29,7 +29,8 @@ settings.json pi settings
 
 | | |
 |---|---|
-| `small-model` | Hidden steers and context pruning for local-model failure modes |
+| `read` | Built-in read wrapper that blocks broad log/large-file reads |
+| `runtime-guards` | Hidden steers and context pruning for cross-turn local-model failure modes |
 | `quality-monitor` | Detects loops/hallucinations, steers hidden self-correction into the next model call |
 | `write-policy` | Keeps write new-file-only and adds append for existing docs |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
