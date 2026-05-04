@@ -36,6 +36,10 @@ export default function (pi: ExtensionAPI) {
   pi.on("turn_end", async (event, ctx) => {
     const message = (event as any).message;
     if (!message) return;
+    if (message.role === "assistant" && message.stopReason === "aborted") {
+      consecutiveFailures = 0;
+      return;
+    }
 
     // Extract assistant text + tool calls from pi's content-block format
     const content = Array.isArray(message.content) ? message.content : [];
