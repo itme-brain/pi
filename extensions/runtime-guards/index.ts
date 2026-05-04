@@ -1,9 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { existsSync, statSync } from "node:fs";
-import { extname, relative, resolve } from "node:path";
-import { hiddenSteer, isHiddenSteerMessage } from "./steer.ts";
+import { hiddenSteer, isHiddenSteerMessage } from "../_shared/steer.ts";
 
-const LARGE_FILE_BYTES = 50 * 1024;
 const TOOL_RESULT_CHAR_LIMIT = 6000;
 const CONTEXT_TOOL_RESULT_CHAR_LIMIT = 2000;
 const MAX_GUARD_STEERS_PER_PROMPT = 4;
@@ -64,7 +61,7 @@ function trimTextContent(content: any, limit: number): any {
   if (truncated) {
     next.push({
       type: "text",
-      text: `\n[small-model: tool output truncated to ${limit} characters; narrow the query if more detail is needed]`,
+      text: `\n[runtime-guard: tool output truncated to ${limit} characters; narrow the query if more detail is needed]`,
     });
   }
   return next;
@@ -89,28 +86,6 @@ function errorAdvice(toolName: string): string {
   }
 }
 
-function isLargeRead(input: any, cwd: string): string | null {
-  const path = typeof input?.path === "string" ? input.path : "";
-  if (!path) return null;
-  const absolute = resolve(cwd, path.startsWith("@") ? path.slice(1) : path);
-  if (!existsSync(absolute)) return null;
-  let stat;
-  try {
-    stat = statSync(absolute);
-  } catch {
-    return null;
-  }
-  if (!stat.isFile()) return null;
-
-  const ext = extname(absolute).toLowerCase();
-  const limit = typeof input.limit === "number" ? input.limit : undefined;
-  const isLog = ext === ".log" || ext === ".out" || ext === ".err";
-  if ((isLog || stat.size > LARGE_FILE_BYTES) && limit === undefined) {
-    return `${relative(cwd, absolute)} is ${stat.size} bytes. Search first, or read a small offset/limit window.`;
-  }
-  return null;
-}
-
 function hiddenSteerKey(message: any): string {
   return `${message.timestamp ?? ""}:${message.content ?? ""}`;
 }
@@ -130,13 +105,6 @@ export default function (pi: ExtensionAPI) {
     guardSteersThisPrompt = 0;
     inspectionStreak = 0;
     inspectionSteered = false;
-  });
-
-  pi.on("tool_call", async (event, ctx) => {
-    if ((event as any).toolName !== "read") return;
-    const reason = isLargeRead((event as any).input, ctx.cwd);
-    if (!reason) return;
-    return { block: true, reason };
   });
 
   pi.on("tool_result", async (event, _ctx) => {
@@ -174,7 +142,7 @@ export default function (pi: ExtensionAPI) {
     steerOnce(pi, "large-output", "A tool returned broad output. Narrow the query instead of consuming more context.");
     return {
       content: trimTextContent((event as any).content, TOOL_RESULT_CHAR_LIMIT),
-      details: { ...(((event as any).details ?? {}) as object), smallModelTruncated: true },
+      details: { ...(((event as any).details ?? {}) as object), runtimeGuardTruncated: true },
     };
   });
 
