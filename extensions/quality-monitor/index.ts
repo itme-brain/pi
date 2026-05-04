@@ -1,8 +1,9 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { assessResponse, buildCorrectionMessage, type ToolCall } from "./quality.ts";
+import { hiddenSteer } from "../small-model/steer.ts";
 
 // Hooks turn_end, inspects the assistant message + previous turn's tool calls,
-// and steers a correction user message into the next LLM call when a failure
+// and steers hidden correction context into the next LLM call when a failure
 // mode is detected.
 
 let previousToolCalls: ToolCall[] = [];
@@ -71,6 +72,6 @@ export default function (pi: ExtensionAPI) {
       `quality-monitor: ${verdict.reason}: steering correction`,
       "warning",
     );
-    pi.sendUserMessage(correction, { deliverAs: "steer" });
+    hiddenSteer(pi, `quality:${verdict.reason}`, correction);
   });
 }
