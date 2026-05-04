@@ -29,7 +29,7 @@ settings.json pi settings
 
 | | |
 |---|---|
-| `quality-monitor` | Detects loops/hallucinations, queues self-correction |
+| `quality-monitor` | Detects loops/hallucinations, steers self-correction into the next model call |
 | `write-policy` | Keeps write new-file-only and adds append for existing docs |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |

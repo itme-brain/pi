@@ -2,8 +2,8 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { assessResponse, buildCorrectionMessage, type ToolCall } from "./quality.ts";
 
 // Hooks turn_end, inspects the assistant message + previous turn's tool calls,
-// and — if we detect a failure mode — queues a correction user message via
-// pi.sendUserMessage so the model gets a chance to recover on its next turn.
+// and steers a correction user message into the next LLM call when a failure
+// mode is detected.
 
 let previousToolCalls: ToolCall[] = [];
 let consecutiveFailures = 0;
@@ -68,9 +68,9 @@ export default function (pi: ExtensionAPI) {
 
     const correction = buildCorrectionMessage(verdict.reason);
     ctx.ui.notify(
-      `quality-monitor: ${verdict.reason} → queued correction`,
+      `quality-monitor: ${verdict.reason}: steering correction`,
       "warning",
     );
-    pi.sendUserMessage(correction, { deliverAs: "followUp" });
+    pi.sendUserMessage(correction, { deliverAs: "steer" });
   });
 }
