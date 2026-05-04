@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { hiddenSteer } from "../small-model/steer.ts";
+import { hiddenSteer } from "../_shared/steer.ts";
 
 // Implements between-turn fallback for thinking-budget cap:
 //   1. Count thinking_delta tokens during message_update

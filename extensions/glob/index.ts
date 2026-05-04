@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { glob } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { Type } from "typebox";
-import { hiddenSteer } from "../small-model/steer.ts";
+import { hiddenSteer } from "../_shared/steer.ts";
 
 const MAX_GLOB_RESULTS = 80;
 
@@ -38,7 +38,7 @@ export default function (pi: ExtensionAPI) {
               text: matches.length === 0
                 ? "No files matched."
                 : matches.join("\n") +
-                  (matches.length >= MAX_GLOB_RESULTS ? `\n[small-model: stopped after ${MAX_GLOB_RESULTS} matches]` : ""),
+                  (matches.length >= MAX_GLOB_RESULTS ? `\n[glob: stopped after ${MAX_GLOB_RESULTS} matches]` : ""),
             },
           ],
           details: { count: matches.length, files: matches, truncated: matches.length >= MAX_GLOB_RESULTS },

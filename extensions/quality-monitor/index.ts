@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { assessResponse, buildCorrectionMessage, type ToolCall } from "./quality.ts";
-import { hiddenSteer } from "../small-model/steer.ts";
+import { hiddenSteer } from "../_shared/steer.ts";
 
 // Hooks turn_end, inspects the assistant message + previous turn's tool calls,
 // and steers hidden correction context into the next LLM call when a failure
