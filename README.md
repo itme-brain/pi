@@ -29,8 +29,7 @@ settings.json pi settings
 
 | | |
 |---|---|
-| `runtime-guards` | Hidden steers and context pruning for local-model failure modes |
-| `quality-monitor` | Detects loops/hallucinations, steers hidden self-correction into the next model call |
+| `quality-monitor` | Detects loops/dead-ends, steers hidden self-correction, and prunes monitor noise |
 | `write-policy` | Keeps write new-file-only and adds append for existing docs |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |

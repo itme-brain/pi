@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { glob } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { Type } from "typebox";
-import { hiddenSteer } from "../_shared/steer.ts";
+import { hiddenSteer } from "../quality-monitor/steer.ts";
 
 const MAX_GLOB_RESULTS = 80;
 

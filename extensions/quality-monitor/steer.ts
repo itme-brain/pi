@@ -1,13 +1,13 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-export const STEER_CUSTOM_TYPE = "runtime-steer";
-const HIDDEN_STEER_TYPES = new Set([STEER_CUSTOM_TYPE, "small-model-steer"]);
+export const STEER_CUSTOM_TYPE = "quality-monitor-steer";
+const HIDDEN_STEER_TYPES = new Set([STEER_CUSTOM_TYPE, "runtime-steer", "small-model-steer"]);
 
 export function hiddenSteer(pi: ExtensionAPI, reason: string, content: string): void {
   pi.sendMessage(
     {
       customType: STEER_CUSTOM_TYPE,
-      content: `[runtime steer: ${reason}] ${content}`,
+      content: `[quality-monitor steer: ${reason}] ${content}`,
       display: false,
       details: { reason },
     },
