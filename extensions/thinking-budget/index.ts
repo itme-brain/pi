@@ -1,10 +1,11 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { hiddenSteer } from "../small-model/steer.ts";
 
 // Implements between-turn fallback for thinking-budget cap:
 //   1. Count thinking_delta tokens during message_update
 //   2. On budget exceed, call ctx.abort() to end the turn
-//   3. On turn_end after abort, flip thinking to "off" and nudge the model
-//      to commit to an implementation
+//   3. On turn_end after abort, flip thinking to "off" and steer the model
+//      to commit to an implementation for one recovery turn
 
 const DEFAULT_BUDGET = 2048;
 
@@ -12,6 +13,8 @@ const DEFAULT_BUDGET = 2048;
 let thinkingChars = 0;
 let budgetForTurn = DEFAULT_BUDGET;
 let aborted = false;
+let restoreThinkingLevel: any = null;
+let recoveryStarted = false;
 
 function charsToTokens(chars: number): number {
   // Matches local/context_manager.estimate_tokens (len/3.5)
@@ -45,8 +48,9 @@ export default function (pi: ExtensionAPI) {
     const tokens = charsToTokens(thinkingChars);
     if (tokens > budgetForTurn) {
       aborted = true;
+      restoreThinkingLevel = pi.getThinkingLevel();
       ctx.ui.notify(
-        `thinking-budget: ${tokens} > ${budgetForTurn} — aborting turn, will retry with thinking off`,
+        `thinking-budget: ${tokens} > ${budgetForTurn}: aborting turn, will retry with thinking off`,
         "warning",
       );
       ctx.abort();
@@ -56,10 +60,25 @@ export default function (pi: ExtensionAPI) {
   pi.on("turn_end", async (_event, _ctx) => {
     if (!aborted) return;
     aborted = false;
+    recoveryStarted = false;
     pi.setThinkingLevel("off");
-    pi.sendUserMessage(
-      "[thinking budget exceeded] Please commit to an implementation now. Stop deliberating and use your tools to make progress.",
-      { deliverAs: "followUp" },
+    hiddenSteer(
+      pi,
+      "thinking-budget",
+      "Thinking budget exceeded. Commit to an implementation now; stop deliberating and use tools to make progress.",
     );
+  });
+
+  pi.on("message_start", async (event) => {
+    if (!restoreThinkingLevel) return;
+    const message = (event as any).message;
+    if (message?.role === "assistant") recoveryStarted = true;
+  });
+
+  pi.on("agent_end", async () => {
+    if (!restoreThinkingLevel || !recoveryStarted) return;
+    pi.setThinkingLevel(restoreThinkingLevel);
+    restoreThinkingLevel = null;
+    recoveryStarted = false;
   });
 }
