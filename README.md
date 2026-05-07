@@ -1,13 +1,44 @@
 # pi
 
-Personal config for [pi](https://github.com/badlogic/pi-mono), tuned for small local models.
+Personal config for [pi](https://github.com/itme-brain/pi-mono), tuned for small local models.
 
 ## Setup
 
 ```bash
 git clone git@github.com:itme-brain/pi.git ~/.pi/agent
-npm install -g @mariozechner/pi-coding-agent
+git clone https://github.com/itme-brain/pi-mono ~/.pi/harness
+cd ~/.pi/harness
+npm install
+npm --prefix packages/tui run build
+npm --prefix packages/ai run build
+npm --prefix packages/agent run build
+npm --prefix packages/coding-agent run build
+npm install -g ./packages/coding-agent
 pi install npm:pi-mcp-adapter
+```
+
+Harness remotes:
+
+```text
+origin    git@github.com:itme-brain/pi-mono
+upstream  https://github.com/badlogic/pi-mono.git
+```
+
+Review and pull upstream through the fork:
+
+```bash
+cd ~/.pi/harness
+git fetch upstream
+git diff main..upstream/main -- packages/coding-agent packages/agent packages/ai packages/tui
+git merge --ff-only upstream/main
+git push origin main
+npm install
+npm --prefix packages/tui run build
+npm --prefix packages/ai run build
+npm --prefix packages/agent run build
+npm --prefix packages/coding-agent run build
+npm install -g ./packages/coding-agent
+git restore packages/ai/src/models.generated.ts
 ```
 
 Required env vars:
