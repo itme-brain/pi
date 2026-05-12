@@ -30,6 +30,8 @@ let inspectionSteered = false;
 let needsVerification = false;
 let verificationSteered = false;
 let deliveredHiddenSteers = new Set<string>();
+let editBlocked = false;
+let consecutiveEditFailures = 0;
 const errorCounts = new Map<string, number>();
 
 function steerOnce(pi: ExtensionAPI, reason: string, content: string): void {
@@ -73,6 +75,8 @@ export default function (pi: ExtensionAPI) {
     needsVerification = false;
     verificationSteered = false;
     deliveredHiddenSteers = new Set<string>();
+    editBlocked = false;
+    consecutiveEditFailures = 0;
     errorCounts.clear();
   });
 
@@ -81,6 +85,16 @@ export default function (pi: ExtensionAPI) {
     guardSteersThisPrompt = 0;
     inspectionStreak = 0;
     inspectionSteered = false;
+  });
+
+  pi.on("tool_call", async (event) => {
+    const name = (event as any).toolName ?? (event as any).name;
+    if (name === "edit" && editBlocked) {
+      return {
+        block: true,
+        reason: "edit failed repeatedly. Run read first or use bash for a targeted rewrite.",
+      };
+    }
   });
 
   pi.on("tool_execution_start", async (event) => {
@@ -142,8 +156,20 @@ export default function (pi: ExtensionAPI) {
       const count = (errorCounts.get(toolName) ?? 0) + 1;
       errorCounts.set(toolName, count);
       if (count === 2) steerOnce(pi, `tool-error:${toolName}`, errorAdvice(toolName));
+      if (toolName === "edit") {
+        consecutiveEditFailures++;
+        if (consecutiveEditFailures === 2) {
+          steerOnce(pi, "edit-fail-loop", "Edit failed twice. Re-read target lines or use bash.");
+        } else if (consecutiveEditFailures >= 3) {
+          editBlocked = true;
+        }
+      }
     } else {
       errorCounts.delete(toolName);
+      if (toolName === "edit" || toolName === "read" || toolName === "bash") {
+        consecutiveEditFailures = 0;
+        editBlocked = false;
+      }
     }
 
     if (MUTATION_TOOLS.has(toolName) && !isError) {
