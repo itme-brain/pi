@@ -1,8 +1,10 @@
 auth.json
+trust.json
 sessions/
 bin/
 mcp-cache.json
 *-debug.log
 node_modules/
 .cache/
-
+npm
+mcp-oauth
