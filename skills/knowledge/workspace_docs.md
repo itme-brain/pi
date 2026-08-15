@@ -10,7 +10,8 @@ user-invocable: false
 Before non-trivial code work, check for a workspace spec — these often contain format rules and edge cases tests assert.
 
 Priority order:
-- `.docs/instructions.md` (and `.append.md`)
+- `.agents/*.md`
+- `.docs/*.md`
 - `AGENTS.md` / `CLAUDE.md`
 - `README.md`
 - `SPEC.md` / `SPECIFICATION.md`

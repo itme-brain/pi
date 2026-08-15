@@ -5,8 +5,8 @@
       "api": "openai-completions",
       "apiKey": "$LLAMACPP_API_KEY",
       "compat": {
-        "supportsDeveloperRole": false,
-        "supportsReasoningEffort": false
+        "supportsReasoningEffort": true,
+        "thinkingFormat": "openai"
       },
       "models": [
         {
@@ -14,7 +14,16 @@
           "name": "ai.ramos.codes",
           "contextWindow": 262144,
           "maxTokens": 32768,
-          "reasoning": true
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": "none",
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "xhigh",
+            "xhigh": null,
+            "max": null
+          }
         }
       ]
     }

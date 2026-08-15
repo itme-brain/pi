@@ -19,7 +19,7 @@
   "packages": [
     "npm:pi-mcp-adapter"
   ],
-  "defaultThinkingLevel": "max",
+  "defaultThinkingLevel": "off",
   "terminal": {
     "showTerminalProgress": false
   }
