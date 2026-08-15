@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import setupSkillInject from "./index.ts";
 import setupKnowledgeInject from "../knowledge-inject/index.ts";
 
@@ -27,15 +27,9 @@ function turn(prompt: string, systemPrompt = "BASE SYSTEM PROMPT") {
   return {
     prompt,
     systemPrompt,
-    systemPromptOptions: {
-      littleCoder: { skillTokenBudget: 300, knowledgeTokenBudget: 200, contextLimit: 32768 },
-    },
+    systemPromptOptions: {},
   };
 }
-
-afterEach(() => {
-  delete process.env.LITTLE_CODER_INJECT_MODE;
-});
 
 describe("skill-inject still injects after the #73 conversion", () => {
   it("delivers the tool skill cards as a hidden tail message", async () => {
@@ -70,16 +64,6 @@ describe("skill-inject still injects after the #73 conversion", () => {
     expect(second).toBeUndefined();
   });
 
-  it("falls back to the system prompt under LITTLE_CODER_INJECT_MODE=system", async () => {
-    process.env.LITTLE_CODER_INJECT_MODE = "system";
-    const handler = handlerFor(setupSkillInject);
-    const result = await handler(turn("edit the parser to fix the bug"), ctx);
-
-    expect(result?.message).toBeUndefined();
-    expect(result.systemPrompt.startsWith("BASE SYSTEM PROMPT")).toBe(true);
-    expect(result.systemPrompt).toContain("## Tool Usage Guidance");
-  });
-
   it("stays silent when nothing matches", async () => {
     const handler = handlerFor(setupSkillInject);
     expect(await handler(turn("zzzz"), ctx)).toBeUndefined();
@@ -88,10 +72,9 @@ describe("skill-inject still injects after the #73 conversion", () => {
 
 describe("knowledge-inject still injects after the #73 conversion", () => {
   // Scoring is word=1.0 / phrase=2.0 against MIN_SCORE_THRESHOLD=2.0, so the
-  // prompt needs one phrase keyword or two single-word ones from a shipped
-  // skills/knowledge entry. "dynamic programming" is a phrase keyword of
-  // skills/knowledge/dynamic_programming.md.
-  const PROMPT = "use dynamic programming to memoize this subproblem";
+  // Prompt needs one phrase keyword or two single-word ones from a shipped
+  // knowledge entry. These words select Workspace Documentation.
+  const PROMPT = "implement this feature from the workspace specification";
 
   async function inject(handler: Handler) {
     return handler(turn(PROMPT), ctx);
@@ -108,14 +91,4 @@ describe("knowledge-inject still injects after the #73 conversion", () => {
     expect(result.systemPrompt).toBeUndefined();
   });
 
-  it("falls back to the system prompt under LITTLE_CODER_INJECT_MODE=system", async () => {
-    process.env.LITTLE_CODER_INJECT_MODE = "system";
-    const handler = handlerFor(setupKnowledgeInject);
-    const result = await inject(handler);
-
-    expect(result, "no knowledge entry scored above threshold").toBeDefined();
-    expect(result.message).toBeUndefined();
-    expect(result.systemPrompt.startsWith("BASE SYSTEM PROMPT")).toBe(true);
-    expect(result.systemPrompt).toContain("## Algorithm Reference");
-  });
 });

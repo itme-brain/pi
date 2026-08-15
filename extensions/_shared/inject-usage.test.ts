@@ -43,7 +43,7 @@ describe("per-turn injection never rewrites the system prompt (issue #73)", () =
   });
 
   it("every injector goes through injectionResult()", () => {
-    const injectors = ["skill-inject", "knowledge-inject", "plan-mode", "deep-research"];
+    const injectors = ["skill-inject", "knowledge-inject"];
     const sources = new Map(extensionSources().map((e) => [e.name, e.src]));
 
     for (const name of injectors) {
@@ -61,8 +61,6 @@ describe("per-turn injection never rewrites the system prompt (issue #73)", () =
     const expected: Record<string, string> = {
       "skill-inject": "lc-skills",
       "knowledge-inject": "lc-knowledge",
-      "plan-mode": "lc-plan",
-      "deep-research": "lc-research",
     };
     for (const [name, customType] of Object.entries(expected)) {
       expect(sources.get(name), name).toContain(`"${customType}"`);

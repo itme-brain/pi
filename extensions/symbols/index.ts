@@ -15,7 +15,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const execFileP = promisify(execFile);
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { extractFileSymbols, getLanguageForFile, type SymbolInfo } from "./parser.js";
 

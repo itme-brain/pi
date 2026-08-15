@@ -40,11 +40,32 @@ type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "
 //      task can think again. (A new task should not inherit "off" just because
 //      a previous one over-thought.)
 
-const DEFAULT_BUDGET = 4096;
+// Fallback caps follow the provider-facing reasoning effort, after applying
+// the model's thinkingLevelMap. In this deployment pi `high` maps to Qwen
+// `xhigh`, so it is deliberately unbounded even though the UI says "high".
+const EFFORT_BUDGETS: Record<string, number> = {
+  none: Infinity,
+  minimal: 256,
+  low: 512,
+  medium: 2048,
+  high: 4096,
+  xhigh: Infinity,
+  max: Infinity,
+};
+
+export function budgetForThinkingLevel(
+  level: ThinkingLevel | undefined,
+  thinkingLevelMap?: Partial<Record<ThinkingLevel, string | null>>,
+): number {
+  if (!level || level === "off") return Infinity;
+  const mapped = thinkingLevelMap?.[level];
+  const effectiveEffort = typeof mapped === "string" ? mapped : level;
+  return EFFORT_BUDGETS[effectiveEffort] ?? 4096;
+}
 
 // Per-run rolling state.
 let thinkingChars = 0;
-let budgetForTurn = DEFAULT_BUDGET;
+let budgetForTurn = Infinity;
 let aborted = false;
 // True from a budget breach until the next genuine user input. While set, we
 // re-assert thinking "off" at the start of every turn so the restart turn (and
@@ -115,15 +136,11 @@ export default function (pi: ExtensionAPI) {
     aborted = false;
   });
 
-  pi.on("before_agent_start", async (event) => {
-    const opts: any = (event as any).systemPromptOptions ?? {};
-    const lc = opts.littleCoder ?? {};
-    const profileBudget = Number(lc.thinkingBudget);
-    const envBudget = Number(process.env.LITTLE_CODER_THINKING_BUDGET);
-    budgetForTurn =
-      (Number.isFinite(profileBudget) && profileBudget > 0 && profileBudget) ||
-      (Number.isFinite(envBudget) && envBudget > 0 && envBudget) ||
-      DEFAULT_BUDGET;
+  pi.on("before_agent_start", async (_event, ctx) => {
+    budgetForTurn = budgetForThinkingLevel(
+      safeGetThinkingLevel(pi),
+      (ctx.model as any)?.thinkingLevelMap,
+    );
   });
 
   pi.on("turn_start", async () => {

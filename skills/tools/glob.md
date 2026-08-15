@@ -3,16 +3,8 @@ name: glob-guidance
 type: tool-guidance
 target_tool: Glob
 priority: 8
-token_cost: 80
 user-invocable: false
 ---
-## Glob Tool
-Find files matching a glob pattern.
-
-REQUIRED: pattern (glob pattern like "**/*.py")
-OPTIONAL: path (directory to search in, defaults to cwd)
-
-RULES:
-- Use ** for recursive matching across directories
-- Returns sorted list of matching file paths
-- Good for finding files by extension or name pattern
+Find files by name or extension. Supply a glob `pattern` such as `**/*.py` and
+optionally a base `path` (defaults to cwd). Use `**` for recursive matching;
+results are sorted.

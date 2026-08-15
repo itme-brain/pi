@@ -24,6 +24,7 @@ interface ToolSkill {
 const skills = new Map<string, ToolSkill>();
 const selectionCache = new Map<string, string>();
 let loaded = false;
+const SKILL_TOKEN_BUDGET = 300;
 
 // State tracked across the session so we have error-recovery + recency
 // signals by the time the next `before_agent_start` fires.
@@ -43,33 +44,12 @@ const INTENT_MAP: Record<string, string[]> = {
   build: ["Bash"], test: ["Bash"],
   find: ["Glob", "Grep"], search: ["Grep"],
   grep: ["Grep"], glob: ["Glob"],
-  fetch: ["WebFetch"], download: ["WebFetch"], url: ["WebFetch"],
-  web: ["WebSearch"],
-  // Research / browser / evidence
-  research: ["BrowserNavigate", "BrowserExtract", "EvidenceAdd"],
-  researching: ["BrowserNavigate", "BrowserExtract", "EvidenceAdd"],
-  wikipedia: ["BrowserNavigate", "BrowserExtract", "EvidenceAdd"],
-  article: ["BrowserNavigate", "BrowserExtract", "EvidenceAdd"],
-  citation: ["EvidenceAdd", "BrowserExtract"],
-  cite: ["EvidenceAdd"],
-  source: ["EvidenceAdd", "BrowserExtract"],
-  fact: ["EvidenceAdd"],
-  factcheck: ["EvidenceAdd", "BrowserExtract"],
-  question: ["EvidenceAdd", "BrowserExtract"],
-  answer: ["EvidenceAdd", "EvidenceList"],
-  navigate: ["BrowserNavigate"],
-  browse: ["BrowserNavigate", "BrowserExtract"],
-  page: ["BrowserExtract"],
-  click: ["BrowserClick"],
-  // Sub-coder delegation
-  delegate: ["dispatch"], dispatch: ["dispatch"], subagent: ["dispatch"],
-  investigate: ["dispatch"], parallel: ["dispatch"],
 };
 
 function skillsDir(): string {
-  // Extension lives at .pi/extensions/skill-inject/, repo root is 3 levels up
+  // Extension lives at <agent>/extensions/skill-inject/, agent root is 2 levels up.
   const here = dirname(fileURLToPath(import.meta.url));
-  return join(here, "..", "..", "..", "skills", "tools");
+  return join(here, "..", "..", "skills", "tools");
 }
 
 function loadSkills(): void {
@@ -83,10 +63,10 @@ function loadSkills(): void {
     if (!parsed) continue;
     const target = parsed.frontmatter.target_tool;
     if (typeof target !== "string" || !target) continue;
-    const cost = typeof parsed.frontmatter.token_cost === "number"
-      ? parsed.frontmatter.token_cost
-      : 150;
-    skills.set(target, { targetTool: target, body: parsed.body, tokenCost: cost });
+    // Charge the body that is actually injected; frontmatter estimates drift
+    // whenever guidance is edited.
+    const cost = Math.ceil(parsed.body.length / 3.5);
+    skills.set(target.toLowerCase(), { targetTool: target, body: parsed.body, tokenCost: cost });
   }
 }
 
@@ -104,9 +84,10 @@ function selectSkills(prompt: string, budget: number, allowed?: Set<string>): To
   const selected: ToolSkill[] = [];
   let used = 0;
   const tryAdd = (name: string): void => {
-    const sk = skills.get(name);
+    const key = name.toLowerCase();
+    const sk = skills.get(key);
     if (!sk || selected.includes(sk)) return;
-    if (allowed && !allowed.has(name)) return;
+    if (allowed && !allowed.has(key)) return;
     if (used + sk.tokenCost > budget) return;
     selected.push(sk);
     used += sk.tokenCost;
@@ -170,9 +151,9 @@ const RESEARCH_DIRECTIVE = [
   "",
   "## Research-first directive",
   "This task involves online research. Before producing a final answer:",
-  "1. Use BrowserNavigate / BrowserExtract (or WebSearch for first hops) to gather facts.",
-  "2. Save each citable fact via EvidenceAdd before relying on it.",
-  "3. Only after evidence is in place should you consider any Edit/Write tool calls.",
+  "1. Use the web-search MCP's search tool first; use extract only when a result snippet is insufficient.",
+  "2. Keep the source URL for every factual claim you rely on.",
+  "3. Only after the needed evidence is in place should you consider any Edit/Write tool calls.",
   "Skipping the gather step (going straight to Edit/Write or guessing from memory) is wrong — restart with the browse step instead.",
   "",
 ].join("\n");
@@ -200,31 +181,18 @@ export default function (pi: ExtensionAPI) {
     if (skills.size === 0) return;
 
     const opts: any = (event as any).systemPromptOptions ?? {};
-    const lc = opts.littleCoder ?? {};
-    const budget: number = lc.skillTokenBudget ?? 300;
-    if (budget <= 0) return;
-
-    // Allow-list source: prefer systemPromptOptions (set by tool-gating's
-    // before_agent_start), but fall back to LITTLE_CODER_ALLOWED_TOOLS env
-    // directly. Pi runs before_agent_start handlers in extension load order
-    // (alphabetical), so skill-inject fires before tool-gating and
-    // lc.allowedTools is undefined on the first turn unless we read env here.
-    let allowedList: string[] | undefined = lc.allowedTools;
-    if (!allowedList && process.env.LITTLE_CODER_ALLOWED_TOOLS) {
-      allowedList = process.env.LITTLE_CODER_ALLOWED_TOOLS
-        .split(",").map((s) => s.trim()).filter(Boolean);
-    }
-    const allowed = allowedList && allowedList.length > 0 ? new Set(allowedList) : undefined;
 
     // Knowledge-inject may publish required_tools on systemPromptOptions —
     // pre-add those before selecting so they win even when budget is tight.
-    // Benchmark profiles can also publish requiredTools (e.g. GAIA -> Browser+Evidence).
-    const preferred: string[] = Array.isArray(lc.requiredTools) ? lc.requiredTools : [];
+    // Benchmark profiles can also publish requiredTools.
+    const preferred: string[] = Array.isArray(opts.agentAugmentation?.requiredTools)
+      ? opts.agentAugmentation.requiredTools
+      : [];
     for (const t of preferred) {
       if (!recentToolCalls.includes(t)) recentToolCalls.unshift(t);
     }
 
-    const selected = selectSkills(event.prompt ?? "", budget, allowed);
+    const selected = selectSkills(event.prompt ?? "", SKILL_TOKEN_BUDGET);
     const researchTask = looksLikeResearchTask(event.prompt ?? "");
 
     if (selected.length === 0 && !researchTask) return;
@@ -267,6 +235,6 @@ export default function (pi: ExtensionAPI) {
       // UI unavailable in some run modes — silent best-effort
     }
 
-    return injectionResult("lc-skills", block, event.systemPrompt ?? "");
+    return injectionResult("lc-skills", block);
   });
 }

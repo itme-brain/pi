@@ -3,24 +3,14 @@ name: edit-guidance
 type: tool-guidance
 target_tool: Edit
 priority: 10
-token_cost: 150
 user-invocable: false
 ---
-## Edit Tool
-Replace exact text in a file. This is the **default tool for changing any existing file** — prefer it over Write for anything except creating a new file from scratch.
+Use Edit for every change to an existing file; Write is only for new files.
+Read first. Each `oldText` must match exactly, including whitespace and line
+endings, and must be unique—include 2–3 surrounding lines when needed. Batch
+disjoint edits in one `edits` array; entries match the original file, so they
+must not overlap or nest. Delete text with an empty `newText`.
 
-REQUIRED: path (absolute), edits (array of {oldText, newText})
-OPTIONAL: none
-
-RULES:
-- Each `oldText` must match EXACTLY (whitespace, indentation, line endings all matter)
-- Each `oldText` must be unique in the file — include 2-3 lines of surrounding context if needed
-- `edits` is matched against the **original** file, not after earlier edits apply — do not overlap or nest
-- To delete text: set `newText` to ""
-- Read the file first if you do not already have its current content
-- Batch multiple disjoint changes in one call by passing multiple `edits[]` entries
-
-RECOVERY WHEN Edit FAILS:
-- "String not found" → Read the file to get the exact current content (whitespace often differs), then retry Edit with the exact string
-- "Found multiple times" → include more surrounding context so `oldText` is unique, then retry Edit
-- Do NOT fall back to Write just because Edit failed once — re-read, fix `oldText`, retry. Write is almost always the wrong recovery here for an existing file.
+On “String not found,” reread and copy the exact text. On “Found multiple
+times,” add surrounding context. Never recover from an Edit failure by
+rewriting the existing file with Write.

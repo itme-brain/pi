@@ -3,7 +3,7 @@
     "llamacpp": {
       "baseUrl": "https://ai.ramos.codes/v1",
       "api": "openai-completions",
-      "apiKey": "$LLAMACPP_API_KEY",
+      "apiKey": "$LLAMA_API_KEY",
       "compat": {
         "supportsReasoningEffort": true,
         "thinkingFormat": "openai"

@@ -42,9 +42,7 @@ git restore packages/ai/src/models.generated.ts
 ```
 
 Required env vars:
-- `LLAMACPP_BASE_URL` — OpenAI-compatible inference endpoint
-- `LLAMACPP_API_KEY` — inference API key
-- `LLAMA_API_KEY` — web-search MCP key (Bearer authorization)
+- `LLAMA_API_KEY` — inference and web-search MCP key
 
 ## Layout
 
@@ -61,9 +59,11 @@ settings.json pi settings
 | | |
 |---|---|
 | `quality-monitor` | Detects loops/dead-ends, steers hidden self-correction, and prunes monitor noise |
-| `write-policy` | Keeps write new-file-only and adds append for existing docs |
+| `write-guard` | Keeps Write new-file-only and blocks destructive shell rewrites |
+| `read-guard-edit` | Refuses Edit until the file has been read in the session |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |
 | `knowledge-inject` | Loads `skills/protocols/*.md` based on relevance |
-| `glob` | Bounded file glob with broad-search steering |
+| `extra-tools` | Bounded file glob with broad-search steering |
 | `symbols` | Tree-sitter codebase navigation; `/explore` activates the full toolset |
+| `instruct` | Applies the local instruct-mode sampling profile when thinking is off |

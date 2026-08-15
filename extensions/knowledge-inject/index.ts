@@ -27,11 +27,11 @@ const cache = new Map<string, string>();
 let loaded = false;
 
 const MIN_SCORE_THRESHOLD = 2.0;
-const PER_ENTRY_CAP = 150;
+const KNOWLEDGE_TOKEN_BUDGET = 200;
 
 function dirs(): string[] {
   const here = dirname(fileURLToPath(import.meta.url));
-  const repo = join(here, "..", "..", "..");
+  const repo = join(here, "..", "..");
   return [join(repo, "skills", "knowledge"), join(repo, "skills", "protocols")];
 }
 
@@ -48,8 +48,9 @@ function loadEntries(): void {
       const topic = (typeof fm.topic === "string" ? fm.topic : "") ||
                     (typeof fm.name === "string" ? fm.name : "");
       if (!topic || !parsed.body) continue;
-      let cost = typeof fm.token_cost === "number" ? fm.token_cost : 150;
-      if (cost > PER_ENTRY_CAP) cost = PER_ENTRY_CAP;
+      // A budget must charge every byte that will be injected. The former cap
+      // limited accounting without truncating the corresponding body.
+      const cost = Math.ceil(parsed.body.length / 3.5);
       const keywords = Array.isArray(fm.keywords)
         ? (fm.keywords as string[]).map((k) => k.toLowerCase())
         : [];
@@ -94,14 +95,10 @@ export default function (pi: ExtensionAPI) {
     loadEntries();
     if (entries.size === 0) return;
 
-    const opts: any = (event as any).systemPromptOptions ?? {};
-    const lc = opts.littleCoder ?? {};
-    const budget: number = lc.knowledgeTokenBudget ?? 200;
-    if (budget <= 0) return;
-    if (lc.isSubtask) return;
+    const opts: any = ((event as any).systemPromptOptions ??= {});
 
     const base = event.systemPrompt ?? "";
-    const contextLimit: number = lc.contextLimit ?? 8192;
+    const contextLimit: number = ctx.model?.contextWindow ?? 8192;
     if (estimateTokens(base) > contextLimit * 0.4) return;
 
     const prompt = event.prompt ?? "";
@@ -118,7 +115,7 @@ export default function (pi: ExtensionAPI) {
     const selected: KnowledgeEntry[] = [];
     let used = 0;
     for (const { entry } of scored) {
-      if (used + entry.tokenCost > budget) continue;
+      if (used + entry.tokenCost > KNOWLEDGE_TOKEN_BUDGET) continue;
       selected.push(entry);
       used += entry.tokenCost;
     }
@@ -130,8 +127,8 @@ export default function (pi: ExtensionAPI) {
       new Set(selected.flatMap((e) => e.requiresTools)),
     );
     if (requiredTools.length > 0) {
-      if (!opts.littleCoder) opts.littleCoder = {};
-      opts.littleCoder.requiredTools = requiredTools;
+      if (!opts.agentAugmentation) opts.agentAugmentation = {};
+      opts.agentAugmentation.requiredTools = requiredTools;
     }
 
     const key = selected.map((e) => e.topic).sort().join("|");
@@ -153,6 +150,6 @@ export default function (pi: ExtensionAPI) {
       // best-effort
     }
 
-    return injectionResult("lc-knowledge", block, base);
+    return injectionResult("lc-knowledge", block);
   });
 }

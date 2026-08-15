@@ -94,7 +94,7 @@ export function buildCorrectionMessage(reason: string): string {
     return (
       `Tool '${toolName}' does not exist. ` +
       "Available tools are: Read, Write, Edit, Bash, Glob, Grep, " +
-      "WebFetch, WebSearch. Please use one of these."
+      "the web-search MCP tools. Please use one of these."
     );
   }
   if (reason.startsWith("malformed_args:")) {

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import setupExtension from "./index.ts";
+import { describe, it, expect } from "vitest";
+import setupExtension, { budgetForThinkingLevel } from "./index.ts";
 
 // Exercise the char→token conversion (matches local/context_manager.py)
 function charsToTokens(chars: number): number {
@@ -16,6 +16,31 @@ describe("thinking budget token estimation", () => {
   it("4096 tokens ~ 14336 chars (the v1.5.0 default budget)", () => {
     expect(charsToTokens(14336)).toBe(4096);
     expect(charsToTokens(14337)).toBeGreaterThan(4096);
+  });
+});
+
+describe("thinking-level budget mapping", () => {
+  const qwenMap = {
+    off: "none",
+    minimal: null,
+    low: "low",
+    medium: "medium",
+    high: "xhigh",
+    xhigh: null,
+    max: null,
+  } as const;
+
+  it("uses caps for the effective Qwen effort", () => {
+    expect(budgetForThinkingLevel("low", qwenMap)).toBe(512);
+    expect(budgetForThinkingLevel("medium", qwenMap)).toBe(2048);
+  });
+
+  it("treats pi high as unbounded because it maps to Qwen xhigh", () => {
+    expect(budgetForThinkingLevel("high", qwenMap)).toBe(Infinity);
+  });
+
+  it("does not budget thinking when it is off", () => {
+    expect(budgetForThinkingLevel("off", qwenMap)).toBe(Infinity);
   });
 });
 
@@ -36,7 +61,7 @@ interface Handler {
   (event: any, ctx: any): Promise<unknown> | unknown;
 }
 
-function makeHarness(initialLevel = "high") {
+function makeHarness(initialLevel = "low") {
   const calls: string[] = []; // ordered log across pi + ctx
   const followUps: string[] = [];
   const notifies: string[] = [];
@@ -102,13 +127,6 @@ async function startRun(h: ReturnType<typeof makeHarness>) {
 }
 
 describe("thinking-budget recovery (issue #8)", () => {
-  beforeEach(() => {
-    process.env.LITTLE_CODER_THINKING_BUDGET = "10"; // tiny budget for short strings
-  });
-  afterEach(() => {
-    delete process.env.LITTLE_CODER_THINKING_BUDGET;
-  });
-
   it("registers NO turn_end handler (recovery must not run against a stale pi)", () => {
     const h = makeHarness();
     setupExtension(h.pi as any);
@@ -120,7 +138,7 @@ describe("thinking-budget recovery (issue #8)", () => {
     setupExtension(h.pi as any);
     await startRun(h);
 
-    await fire(h.pi, "message_update", thinkingDelta("x".repeat(1000)), h.ctx);
+    await fire(h.pi, "message_update", thinkingDelta("x".repeat(2000)), h.ctx);
 
     // setThinkingLevel("off") and sendUserMessage both happen before abort.
     expect(h.calls).toEqual(["set:off", "send", "notify", "abort"]);
@@ -134,9 +152,9 @@ describe("thinking-budget recovery (issue #8)", () => {
     const h = makeHarness();
     setupExtension(h.pi as any);
     await startRun(h);
-    await fire(h.pi, "message_update", thinkingDelta("x".repeat(1000)), h.ctx);
-    await fire(h.pi, "message_update", thinkingDelta("y".repeat(1000)), h.ctx);
-    await fire(h.pi, "message_update", thinkingDelta("z".repeat(1000)), h.ctx);
+    await fire(h.pi, "message_update", thinkingDelta("x".repeat(2000)), h.ctx);
+    await fire(h.pi, "message_update", thinkingDelta("y".repeat(2000)), h.ctx);
+    await fire(h.pi, "message_update", thinkingDelta("z".repeat(2000)), h.ctx);
 
     expect(h.calls.filter((c) => c === "abort")).toHaveLength(1);
     expect(h.followUps).toHaveLength(1);
@@ -146,16 +164,16 @@ describe("thinking-budget recovery (issue #8)", () => {
     const h = makeHarness();
     setupExtension(h.pi as any);
     await startRun(h);
-    await fire(h.pi, "message_update", thinkingDelta("ok"), h.ctx); // 2 chars < 10 tokens
+    await fire(h.pi, "message_update", thinkingDelta("ok"), h.ctx);
     expect(h.calls).toEqual([]);
-    expect(h.level()).toBe("high");
+    expect(h.level()).toBe("low");
   });
 
   it("re-asserts thinking off on the restart turn even if pi re-enables it", async () => {
     const h = makeHarness();
     setupExtension(h.pi as any);
     await startRun(h);
-    await fire(h.pi, "message_update", thinkingDelta("x".repeat(1000)), h.ctx); // breach → off
+    await fire(h.pi, "message_update", thinkingDelta("x".repeat(2000)), h.ctx); // breach → off
 
     // Simulate the post-abort session replacement re-resolving thinking to the
     // profile default. The bug was that this stuck; the fix re-asserts off.
@@ -171,7 +189,7 @@ describe("thinking-budget recovery (issue #8)", () => {
     const h = makeHarness("medium");
     setupExtension(h.pi as any);
     await startRun(h);
-    await fire(h.pi, "message_update", thinkingDelta("x".repeat(1000)), h.ctx); // breach
+    await fire(h.pi, "message_update", thinkingDelta("x".repeat(8000)), h.ctx); // breach
     expect(h.level()).toBe("off");
 
     // A new user prompt ends the forced-off window and restores the level.
@@ -195,26 +213,17 @@ describe("thinking-budget recovery (issue #8)", () => {
 });
 
 describe("thinking-budget resolution", () => {
-  afterEach(() => {
-    delete process.env.LITTLE_CODER_THINKING_BUDGET;
-  });
-
-  it("a profile budget wins over the env budget", async () => {
-    process.env.LITTLE_CODER_THINKING_BUDGET = "10";
-    const h = makeHarness();
+  it("uses the model mapping when resolving the active turn", async () => {
+    const h = makeHarness("high");
+    (h.ctx as any).model = {
+      thinkingLevelMap: { high: "xhigh" },
+    };
     setupExtension(h.pi as any);
     await fire(h.pi, "session_start", {}, h.ctx);
     await fire(h.pi, "agent_start", {}, h.ctx);
-    // profile budget 100 tokens (~350 chars) overrides env's 10.
-    await fire(
-      h.pi,
-      "before_agent_start",
-      { systemPromptOptions: { littleCoder: { thinkingBudget: 100 } } },
-      h.ctx,
-    );
+    await fire(h.pi, "before_agent_start", {}, h.ctx);
     await fire(h.pi, "turn_start", {}, h.ctx);
-    // 200 chars ≈ 58 tokens — under the 100-token profile budget, over env's 10.
-    await fire(h.pi, "message_update", thinkingDelta("x".repeat(200)), h.ctx);
+    await fire(h.pi, "message_update", thinkingDelta("x".repeat(20000)), h.ctx);
     expect(h.calls).toEqual([]);
   });
 });
