@@ -1,14 +1,18 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSkillFile } from "../skill-inject/frontmatter.ts";
+import { injectionResult, makeDedupe } from "../_shared/inject.ts";
 
 // ── Knowledge-entry registry ────────────────────────────────────────────
 // Port of local/knowledge_augment.py. Loads skills/knowledge/*.md plus the
 // three root-level protocol skills (skills/protocols/*.md). Scores entries
 // against the user's prompt, selects top within budget, publishes
 // `requires_tools` on systemPromptOptions so skill-inject can include them.
+//
+// Like skill-inject, the selected entries ride in as a tail message rather
+// than a system-prompt append (issue #73 — see _shared/inject.ts).
 
 interface KnowledgeEntry {
   topic: string;
@@ -26,10 +30,9 @@ const MIN_SCORE_THRESHOLD = 2.0;
 const PER_ENTRY_CAP = 150;
 
 function dirs(): string[] {
-  // Extension at ~/.pi/agent/extensions/knowledge-inject/; skills at ~/.pi/agent/skills/
   const here = dirname(fileURLToPath(import.meta.url));
-  const root = join(here, "..", "..");
-  return [join(root, "skills", "knowledge"), join(root, "skills", "protocols")];
+  const repo = join(here, "..", "..", "..");
+  return [join(repo, "skills", "knowledge"), join(repo, "skills", "protocols")];
 }
 
 function loadEntries(): void {
@@ -85,6 +88,8 @@ function buildBlock(selected: KnowledgeEntry[]): string {
 }
 
 export default function (pi: ExtensionAPI) {
+  const shouldInject = makeDedupe();
+
   pi.on("before_agent_start", async (event, ctx) => {
     loadEntries();
     if (entries.size === 0) return;
@@ -96,7 +101,7 @@ export default function (pi: ExtensionAPI) {
     if (lc.isSubtask) return;
 
     const base = event.systemPrompt ?? "";
-    const contextLimit: number = lc.contextLimit ?? 262144;
+    const contextLimit: number = lc.contextLimit ?? 8192;
     if (estimateTokens(base) > contextLimit * 0.4) return;
 
     const prompt = event.prompt ?? "";
@@ -136,6 +141,9 @@ export default function (pi: ExtensionAPI) {
       cache.set(key, block);
     }
 
+    // Same entries as last turn? That copy is still in the conversation.
+    if (!shouldInject(block)) return;
+
     try {
       ctx.ui.notify(
         `knowledge-inject: +${selected.length} [${selected.map((e) => e.topic).join(",")}]`,
@@ -145,6 +153,6 @@ export default function (pi: ExtensionAPI) {
       // best-effort
     }
 
-    return { systemPrompt: base + block };
+    return injectionResult("lc-knowledge", block, base);
   });
 }

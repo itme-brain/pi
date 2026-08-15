@@ -1,9 +1,18 @@
 ---
 name: glob-guidance
 type: tool-guidance
-target_tool: glob
+target_tool: Glob
 priority: 8
-token_cost: 35
+token_cost: 80
 user-invocable: false
 ---
-Use glob/find to discover files by path pattern before reading. Prefer narrow patterns and avoid recursively inspecting large generated, vendor, or binary-heavy trees.
+## Glob Tool
+Find files matching a glob pattern.
+
+REQUIRED: pattern (glob pattern like "**/*.py")
+OPTIONAL: path (directory to search in, defaults to cwd)
+
+RULES:
+- Use ** for recursive matching across directories
+- Returns sorted list of matching file paths
+- Good for finding files by extension or name pattern

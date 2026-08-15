@@ -1,9 +1,18 @@
 ---
 name: read-guidance
 type: tool-guidance
-target_tool: read
+target_tool: Read
 priority: 10
-token_cost: 55
+token_cost: 100
 user-invocable: false
 ---
-Use read for targeted file inspection after search narrows the path or symbol. Avoid whole large files and logs; search first, then read only the relevant window. Use offsets only when genuinely continuing a needed source file.
+## Read Tool
+Read a file's contents with line numbers.
+
+REQUIRED: path (absolute path)
+OPTIONAL: limit (max lines), offset (start line, 0-indexed)
+
+RULES:
+- Always use absolute paths, never relative
+- Use limit+offset for large files (read in chunks of 100-200 lines)
+- Returns format: "N\tline_content" (tab-separated line number + content)

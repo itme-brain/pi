@@ -7,7 +7,7 @@
     "enabled": true,
     "maxRetries": 2
   },
-  "lastChangelogVersion": "0.80.3",
+  "lastChangelogVersion": "0.84.2",
   "images": {
     "autoResize": true,
     "blockImages": true
@@ -19,10 +19,8 @@
   "packages": [
     "npm:pi-mcp-adapter"
   ],
-  "defaultThinkingLevel": "medium",
+  "defaultThinkingLevel": "max",
   "terminal": {
     "showTerminalProgress": false
-  },
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5"
+  }
 }
