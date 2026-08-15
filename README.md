@@ -44,7 +44,7 @@ git restore packages/ai/src/models.generated.ts
 Required env vars:
 - `LLAMACPP_BASE_URL` — OpenAI-compatible inference endpoint
 - `LLAMACPP_API_KEY` — inference API key
-- `LLAMA_API_KEY` — web-search MCP key (X-API-Key header)
+- `LLAMA_API_KEY` — web-search MCP key (Bearer authorization)
 
 ## Layout
 
