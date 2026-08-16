@@ -9,7 +9,6 @@
   },
   "lastChangelogVersion": "0.84.2",
   "images": {
-    "autoResize": true,
     "blockImages": true
   },
   "collapseChangelog": true,
@@ -19,7 +18,7 @@
   "packages": [
     "npm:pi-mcp-adapter"
   ],
-  "defaultThinkingLevel": "off",
+  "defaultThinkingLevel": "medium",
   "terminal": {
     "showTerminalProgress": false
   }
