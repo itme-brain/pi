@@ -52,16 +52,10 @@ describe("knowledge entry scoring", () => {
 describe("knowledge directory loads from repo", () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const kDir = join(here, "..", "..", "skills", "knowledge");
-  const pDir = join(here, "..", "..", "skills", "protocols");
 
   it("knowledge dir contains entries", () => {
     expect(existsSync(kDir)).toBe(true);
     expect(readdirSync(kDir).filter((f) => f.endsWith(".md")).length).toBeGreaterThan(0);
-  });
-
-  it("protocols dir contains entries", () => {
-    expect(existsSync(pDir)).toBe(true);
-    expect(readdirSync(pDir).filter((f) => f.endsWith(".md")).length).toBeGreaterThan(0);
   });
 
   it("every knowledge entry has topic + keywords in frontmatter", () => {

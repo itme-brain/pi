@@ -40,8 +40,10 @@ describe("read-before-edit guard", () => {
     const ctx = makeCtx(cwd);
     const result = await h.tool_call({ toolName: "edit", input: { path: "a.ts", edits: [] } }, ctx);
     expect(result?.block).toBe(true);
-    expect(result.reason).toContain("must be read first");
-    expect(result.reason).toContain("/home/me/proj/a.ts");
+    expect(result.reason).toBe(
+      "Blocked: /home/me/proj/a.ts has not been read this session. " +
+        "Read it, then retry Edit using the exact current text.",
+    );
     expect(ctx.notifies[0]).toMatch(/harness intervention:.*Read first/i);
   });
 

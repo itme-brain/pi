@@ -7,7 +7,7 @@ import { injectionResult, makeDedupe } from "../_shared/inject.ts";
 
 // ── Knowledge-entry registry ────────────────────────────────────────────
 // Port of local/knowledge_augment.py. Loads skills/knowledge/*.md plus the
-// three root-level protocol skills (skills/protocols/*.md). Scores entries
+// root-level knowledge cards (skills/knowledge/*.md). Scores entries
 // against the user's prompt, selects top within budget, publishes
 // `requires_tools` on systemPromptOptions so skill-inject can include them.
 //
@@ -32,7 +32,7 @@ const KNOWLEDGE_TOKEN_BUDGET = 200;
 function dirs(): string[] {
   const here = dirname(fileURLToPath(import.meta.url));
   const repo = join(here, "..", "..");
-  return [join(repo, "skills", "knowledge"), join(repo, "skills", "protocols")];
+  return [join(repo, "skills", "knowledge")];
 }
 
 function loadEntries(): void {

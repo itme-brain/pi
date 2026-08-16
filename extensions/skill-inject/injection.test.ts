@@ -44,17 +44,6 @@ describe("skill-inject still injects after the #73 conversion", () => {
     expect(result.systemPrompt).toBeUndefined();
   });
 
-  it("still appends the research directive last, ahead of nothing", async () => {
-    const handler = handlerFor(setupSkillInject);
-    const result = await handler(turn("research the history of the transistor online"), ctx);
-    const content: string = result.message.content;
-    expect(content).toContain("## Research-first directive");
-    // Recency bias is the reason the directive is last; keep that ordering.
-    expect(content.indexOf("## Research-first directive")).toBeGreaterThan(
-      content.indexOf("## Tool Usage Guidance"),
-    );
-  });
-
   it("skips a repeat of the identical block on the next turn", async () => {
     const handler = handlerFor(setupSkillInject);
     const first = await handler(turn("edit the parser"), ctx);

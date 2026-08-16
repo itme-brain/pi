@@ -5,10 +5,7 @@ target_tool: Write
 priority: 10
 user-invocable: false
 ---
-Use Write only to create a new file from its exact path and complete content;
-parent directories are created automatically. Existing files are refused—do
-not retry or bypass the refusal. Use Edit for every modification, including
-bug fixes, refactors, formatting, additions, and post-test iterations.
-
-To replace an existing file completely, read it and use Edit with the entire
-current content as `oldText`. Never use placeholder paths.
+Use Write with an exact path and complete file content. New files are allowed
+immediately; parent directories are created automatically. Before replacing an
+existing file, Read it in the current session. After that, either Write or Edit
+is allowed. Never use placeholder paths.

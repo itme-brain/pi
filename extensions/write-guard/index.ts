@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { harnessIntervention } from "../_shared/intervention.ts";
+import { knownFiles } from "../_shared/known-files.ts";
 import { detectWriteTargets } from "../_shared/shell-write.ts";
 
 // Windows reserved device names. Writing to a file whose basename is one of
@@ -75,27 +76,11 @@ function pathKey(input: Record<string, unknown>): "path" | "file_path" | undefin
 // going anywhere near the `write` tool (issue #70).
 const SHELL_TOOLS = new Set(["bash", "Bash", "ShellSession"]);
 
-function editRecipe(resolved: string): string {
-  return (
-    `Write refused — ${resolved} already exists.\n` +
-    `\n` +
-    `Write is for creating NEW files only. To change an existing file, use Edit:\n` +
-    `  {"name": "edit", "input": {"path": "${resolved}", ` +
-    `"edits": [{"oldText": "<exact text currently in the file>", ` +
-    `"newText": "<replacement text>"}]}}\n` +
-    `\n` +
-    `If you do not already know the file's current content, Read it first to get the ` +
-    `exact text for oldText (whitespace and indentation must match). Include enough ` +
-    `surrounding context (2-3 lines) to make oldText unique in the file.\n` +
-    `\n` +
-    `For multiple changes, pass multiple entries in edits[] — one per location. Do NOT ` +
-    `retry Write; it will be refused again.`
-  );
+function readBeforeOverwriteReason(resolved: string): string {
+  return `Blocked: ${resolved} already exists and has not been read this session. Read it, then retry Write or use Edit.`;
 }
 
-// Port of tools.py::_write's guard. The whitepaper's benchmark result depends
-// on Write refusing whole-file rewrites of existing files (fires on ~57% of
-// Polyglot exercises). The earlier implementation registered a *custom* `write`
+// The earlier implementation registered a *custom* `write`
 // tool to enforce this — but pi ships its own built-in `write`
 // (`core/tools/write.js`, "overwrites if it does") which shadowed the custom
 // one, so on current pi the guard never fired and existing files were silently
@@ -115,11 +100,14 @@ export interface WriteVerdict {
  * same destinations for the same reasons.
  *
  * @param truncates whether the operation replaces existing content. A shell
- *   append (`>>`) doesn't destroy anything, so it isn't the whole-file-rewrite
- *   failure mode this guard exists to prevent; a reserved device name is still
- *   refused either way.
+ *   append (`>>`) doesn't destroy anything, so it is allowed without a prior
+ *   read; a reserved device name is still refused either way.
  */
-export function writeVerdict(resolved: string, truncates = true): WriteVerdict | null {
+export function writeVerdict(
+  resolved: string,
+  truncates = true,
+  hasBeenRead = false,
+): WriteVerdict | null {
   // Reserved Windows device name (nul, con, com1, …): refuse outright. On
   // Windows this would create an undeletable device-named file (issue #60);
   // everywhere it's a near-certain mistake. Check before existsSync — a
@@ -127,28 +115,22 @@ export function writeVerdict(resolved: string, truncates = true): WriteVerdict |
   if (isReservedDeviceName(resolved)) {
     return {
       intervention: `blocked a write to the reserved device name "${basename(resolved)}".`,
-      reason:
-        `Write refused — "${basename(resolved)}" is a reserved Windows device name ` +
-        `(CON, PRN, AUX, NUL, COM1-9, LPT1-9). Writing it creates an undeletable ` +
-        `junk file on Windows and is almost never intended.\n` +
-        `\n` +
-        `If you wanted to discard output, don't write a file at all. If you wanted a ` +
-        `real file, choose a normal name (e.g. "notes.txt", "output.log").`,
+      reason: `Blocked: "${basename(resolved)}" is a reserved Windows device name. Choose another filename.`,
     };
   }
 
   if (!truncates) return null; // append — nothing is lost
   if (!existsSync(resolved)) return null; // new file — allow it through
+  if (hasBeenRead) return null; // informed replacement — allow either Write or Edit
 
   return {
-    intervention: "small models can't rewrite whole files — redirected the model to Edit.",
-    reason: editRecipe(resolved),
+    intervention: "the model tried to overwrite an unread file — redirected it to Read first.",
+    reason: readBeforeOverwriteReason(resolved),
   };
 }
 
-// Port of tools.py::_write's guard. The whitepaper's benchmark result depends
-// on Write refusing whole-file rewrites of existing files (fires on ~57% of
-// Polyglot exercises). The earlier implementation registered a *custom* `write`
+// Intercept pi's built-in Write so an existing file must be read before it can
+// be replaced. The earlier implementation registered a *custom* `write`
 // tool to enforce this — but pi ships its own built-in `write`
 // (`core/tools/write.js`, "overwrites if it does") which shadowed the custom
 // one, so on current pi the guard never fired and existing files were silently
@@ -167,7 +149,7 @@ export default function (pi: ExtensionAPI) {
     // the resolved path even when we don't block (e.g. the `/foo.md` → cwd fix).
     input[key] = resolved;
 
-    const verdict = writeVerdict(resolved);
+    const verdict = writeVerdict(resolved, true, knownFiles.has(resolved));
     if (!verdict) return;
     harnessIntervention(ctx, verdict.intervention);
     return { block: true, reason: verdict.reason };
@@ -180,7 +162,7 @@ export default function (pi: ExtensionAPI) {
   //
   // In auto/manual permission mode, permission-gate refuses shell writes before
   // this ever runs. In accept-all mode (benchmarks) it doesn't, so this is the
-  // layer that keeps the whole-file-rewrite guarantee intact there.
+  // layer that applies the same read-before-overwrite policy there.
   pi.on("tool_call", async (event, ctx) => {
     if (!SHELL_TOOLS.has(String((event as any).toolName ?? ""))) return;
     const cmd = ((event as any).input ?? {})?.command;
@@ -188,17 +170,18 @@ export default function (pi: ExtensionAPI) {
 
     for (const write of detectWriteTargets(cmd)) {
       const { path: resolved } = normalizeWritePath(write.path, ctx.cwd);
-      const verdict = writeVerdict(resolved, write.kind !== "append");
+      const verdict = writeVerdict(
+        resolved,
+        write.kind !== "append",
+        knownFiles.has(resolved),
+      );
       if (!verdict) continue;
       harnessIntervention(ctx, verdict.intervention);
       return {
         block: true,
-        reason:
-          `${verdict.reason}\n` +
-          `\n` +
-          `(This applies to shell redirection too — writing the file with ` +
-          `\`${write.kind === "append" ? ">>" : write.kind === "redirect" ? ">" : write.kind}\` ` +
-          `is the same write, so it is refused for the same reason.)`,
+        reason: isReservedDeviceName(resolved)
+          ? verdict.reason
+          : `Blocked: this command overwrites unread file ${resolved}. Read it, then retry.`,
       };
     }
   });

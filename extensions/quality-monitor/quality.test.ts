@@ -75,25 +75,29 @@ describe("assessResponse", () => {
 
 describe("buildCorrectionMessage", () => {
   it("generates empty-response message", () => {
-    const m = buildCorrectionMessage("empty_response");
-    expect(m).toContain("empty");
+    expect(buildCorrectionMessage("empty_response")).toBe(
+      "No response produced. Continue the task.",
+    );
   });
   it("generates unknown-tool message with tool name", () => {
-    const m = buildCorrectionMessage("unknown_tool:FakeTool");
-    expect(m).toContain("'FakeTool'");
-    expect(m).toContain("does not exist");
+    expect(buildCorrectionMessage("unknown_tool:FakeTool")).toBe(
+      "Blocked: tool 'FakeTool' does not exist. Use an available tool.",
+    );
   });
   it("generates malformed-args message", () => {
-    const m = buildCorrectionMessage("malformed_args:Read");
-    expect(m).toContain("'Read'");
-    expect(m).toContain("malformed");
+    expect(buildCorrectionMessage("malformed_args:Read")).toBe(
+      "Blocked: invalid JSON arguments for Read. Retry with valid JSON.",
+    );
   });
   it("generates repeated-tool-call message", () => {
-    const m = buildCorrectionMessage("repeated_tool_call");
-    expect(m).toContain("loop");
+    expect(buildCorrectionMessage("repeated_tool_call")).toBe(
+      "Blocked: identical tool call repeated. Use a different action.",
+    );
   });
   it("falls back to generic on unknown reason", () => {
-    expect(buildCorrectionMessage("weird_thing")).toContain("weird_thing");
+    expect(buildCorrectionMessage("weird_thing")).toBe(
+      "Blocked: weird_thing. Use a different action.",
+    );
   });
 });
 

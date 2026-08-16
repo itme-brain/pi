@@ -185,6 +185,42 @@ describe("thinking-budget recovery (issue #8)", () => {
     expect(h.level()).toBe("off");
   });
 
+  it("forces the recovery provider request to reasoning_effort none", async () => {
+    const h = makeHarness("medium");
+    setupExtension(h.pi as any);
+    await startRun(h);
+    await fire(h.pi, "message_update", thinkingDelta("x".repeat(8000)), h.ctx);
+
+    // Even if session replacement races with the state-level override, the
+    // final outbound payload cannot turn thinking back on.
+    h.setLevelExternally("medium");
+    const handlers = h.pi.handlers["before_provider_request"] ?? [];
+    let payload: Record<string, unknown> = {
+      model: "local",
+      reasoning_effort: "medium",
+      messages: [{ role: "assistant", reasoning_content: "partial trace" }],
+    };
+    for (const handler of handlers) {
+      payload =
+        ((await handler({ payload }, h.ctx)) as Record<string, unknown> | undefined) ?? payload;
+    }
+
+    expect(payload.reasoning_effort).toBe("none");
+    expect(payload.messages).toEqual([
+      { role: "assistant", reasoning_content: "partial trace" },
+    ]);
+  });
+
+  it("does not rewrite ordinary provider requests", async () => {
+    const h = makeHarness("medium");
+    setupExtension(h.pi as any);
+    await startRun(h);
+    const handler = h.pi.handlers["before_provider_request"]?.[0];
+    const payload = { reasoning_effort: "medium" };
+
+    expect(await handler?.({ payload }, h.ctx)).toBeUndefined();
+  });
+
   it("restores the prior thinking level on the next genuine user input", async () => {
     const h = makeHarness("medium");
     setupExtension(h.pi as any);

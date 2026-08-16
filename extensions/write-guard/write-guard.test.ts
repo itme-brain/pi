@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import setupWriteGuard, { normalizeWritePath, isReservedDeviceName } from "./index.ts";
+import { knownFiles } from "../_shared/known-files.ts";
 
 describe("normalizeWritePath", () => {
   const cwd = "/home/me/proj";
@@ -93,6 +94,7 @@ describe("write-guard tool_call interceptor", () => {
   let dir: string;
   let existing: string;
   beforeEach(() => {
+    knownFiles.clear();
     dir = mkdtempSync(join(tmpdir(), "wg-"));
     existing = join(dir, "already.md");
     writeFileSync(existing, "old content\n");
@@ -101,16 +103,27 @@ describe("write-guard tool_call interceptor", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("blocks a write to an existing file with an Edit recipe", async () => {
+  it("blocks a write to an unread existing file and requests a Read", async () => {
     const handler = getToolCallHandler();
     const ctx = makeCtx(dir);
     const event = { toolName: "write", input: { path: existing, content: "new" } };
     const result = await handler(event, ctx);
     expect(result?.block).toBe(true);
-    expect(result.reason).toContain("already exists");
-    expect(result.reason).toContain('"name": "edit"'); // correct pi edit recipe
-    expect(result.reason).toContain("oldText");
-    expect(ctx.notifies[0]).toMatch(/harness intervention:.*redirected the model to Edit/i);
+    expect(result.reason).toBe(
+      `Blocked: ${existing} already exists and has not been read this session. ` +
+        `Read it, then retry Write or use Edit.`,
+    );
+    expect(ctx.notifies[0]).toMatch(/harness intervention:.*Read first/i);
+  });
+
+  it("allows a write to an existing file after it has been read", async () => {
+    const handler = getToolCallHandler();
+    knownFiles.add(existing);
+    const result = await handler(
+      { toolName: "write", input: { path: existing, content: "new" } },
+      makeCtx(dir),
+    );
+    expect(result).toBeUndefined();
   });
 
   it("allows a write to a NEW file (no block) and normalizes the path in place", async () => {
@@ -170,7 +183,9 @@ describe("write-guard tool_call interceptor", () => {
     // create an undeletable device-named file; we refuse on every platform.
     const result = await handler({ toolName: "write", input: { path: "nul", content: "x" } }, ctx);
     expect(result?.block).toBe(true);
-    expect(result.reason).toContain("reserved Windows device name");
+    expect(result.reason).toBe(
+      'Blocked: "nul" is a reserved Windows device name. Choose another filename.',
+    );
     expect(ctx.notifies[0]).toMatch(/reserved device name/i);
   });
 
@@ -203,6 +218,7 @@ describe("write-guard shell interceptor (issue #70)", () => {
   let dir: string;
   let existing: string;
   beforeEach(() => {
+    knownFiles.clear();
     dir = mkdtempSync(join(tmpdir(), "wg-sh-"));
     existing = join(dir, "main.py");
     writeFileSync(existing, "old content\n");
@@ -221,9 +237,10 @@ describe("write-guard shell interceptor (issue #70)", () => {
     ].join("\n");
     const result = await handler({ toolName: "ShellSession", input: { command } }, ctx);
     expect(result?.block).toBe(true);
-    expect(result.reason).toContain("already exists");
-    expect(result.reason).toContain('"name": "edit"');
-    expect(ctx.notifies[0]).toMatch(/harness intervention:.*redirected the model to Edit/i);
+    expect(result.reason).toBe(
+      `Blocked: this command overwrites unread file ${existing}. Read it, then retry.`,
+    );
+    expect(ctx.notifies[0]).toMatch(/harness intervention:.*Read first/i);
   });
 
   it("blocks it through the bash tool too, and under a different delimiter", async () => {
@@ -247,6 +264,16 @@ describe("write-guard shell interceptor (issue #70)", () => {
     const handler = getToolCallHandler();
     const result = await handler(
       { toolName: "bash", input: { command: "echo hi >> main.py" } },
+      makeCtx(dir),
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("allows shell truncation after the destination has been read", async () => {
+    const handler = getToolCallHandler();
+    knownFiles.add(existing);
+    const result = await handler(
+      { toolName: "bash", input: { command: "echo replacement > main.py" } },
       makeCtx(dir),
     );
     expect(result).toBeUndefined();

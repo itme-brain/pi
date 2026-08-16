@@ -152,6 +152,23 @@ export default function (pi: ExtensionAPI) {
     if (forcedOff) safeSetThinkingLevel(pi, "off");
   });
 
+  // `setThinkingLevel("off")` is session/UI state.  A recovery run can be
+  // queued while pi is replacing the aborted session, and that replacement
+  // may resolve the profile's original thinking level before it builds the
+  // provider payload.  Enforce the invariant at the final request boundary as
+  // well: every request in the recovery window is sent with thinking disabled.
+  // This changes only generation options; pi still replays the aborted
+  // assistant message (including its partial thinking blocks) as context.
+  pi.on("before_provider_request", (event) => {
+    if (!forcedOff) return;
+
+    const payload = event.payload as Record<string, unknown>;
+    return {
+      ...payload,
+      reasoning_effort: "none",
+    };
+  });
+
   pi.on("message_update", async (event, ctx) => {
     const ev: any = (event as any).assistantMessageEvent;
     if (!ev) return;

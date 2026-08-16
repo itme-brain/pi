@@ -119,45 +119,6 @@ function buildBlock(selected: ToolSkill[]): string {
   return out;
 }
 
-// Keyword-triggered directive: when the user's prompt smells like a
-// research / web-lookup task, prepend an explicit "browse-first, then
-// edit-write" rule. Without it, qwen-class small models often skip
-// straight to Edit/Write on free-form questions, never gathering evidence.
-const RESEARCH_TRIGGERS = [
-  /\bbrows(?:e|ing|er)\b/i,
-  /\bonline\b/i,
-  /\bresearch(?:ing)?\b/i,
-  /\blook\s+up\b/i,
-  /\blookup\b/i,
-  /\bsearch\s+(?:the|for)\b/i,
-  /\bweb\s*search\b/i,
-  /\bwikipedia\b/i,
-  /\bwebsite\b/i,
-  /\bweb\s*page\b/i,
-  /\bgoogle\b/i,
-  /\bcite|citation\b/i,
-  /\bfact[-\s]?check/i,
-];
-
-function looksLikeResearchTask(text: string): boolean {
-  if (!text) return false;
-  for (const re of RESEARCH_TRIGGERS) {
-    if (re.test(text)) return true;
-  }
-  return false;
-}
-
-const RESEARCH_DIRECTIVE = [
-  "",
-  "## Research-first directive",
-  "This task involves online research. Before producing a final answer:",
-  "1. Use the web-search MCP's search tool first; use extract only when a result snippet is insufficient.",
-  "2. Keep the source URL for every factual claim you rely on.",
-  "3. Only after the needed evidence is in place should you consider any Edit/Write tool calls.",
-  "Skipping the gather step (going straight to Edit/Write or guessing from memory) is wrong — restart with the browse step instead.",
-  "",
-].join("\n");
-
 export default function (pi: ExtensionAPI) {
   const shouldInject = makeDedupe();
 
@@ -193,9 +154,7 @@ export default function (pi: ExtensionAPI) {
     }
 
     const selected = selectSkills(event.prompt ?? "", SKILL_TOKEN_BUDGET);
-    const researchTask = looksLikeResearchTask(event.prompt ?? "");
-
-    if (selected.length === 0 && !researchTask) return;
+    if (selected.length === 0) return;
 
     const skillBlock = selected.length > 0
       ? (() => {
@@ -209,32 +168,21 @@ export default function (pi: ExtensionAPI) {
         })()
       : "";
 
-    const directive = researchTask ? RESEARCH_DIRECTIVE : "";
-
-    // Order within the block: [tool skill cards] [research directive]. The
-    // directive comes LAST by design — small models show strong recency bias
-    // and the per-task instruction is what we want freshest in their
-    // attention. Delivered at the conversation tail (see _shared/inject.ts),
-    // which is later still than the end of the system prompt.
-    const block = skillBlock + directive;
-
     // Identical to last turn's block? The previous copy is still in the
     // conversation, so re-sending it would only burn context.
-    if (!shouldInject(block)) return;
+    if (!shouldInject(skillBlock)) return;
 
     // Fire-and-forget notify so the benchmark harness can count per-turn
     // skill injections without having to reconstruct the prompt.
     try {
-      const parts: string[] = [];
-      if (selected.length > 0) {
-        parts.push(`+${selected.length} [${selected.map((s) => s.targetTool).join(",")}]`);
-      }
-      if (researchTask) parts.push("+research-directive");
-      ctx.ui.notify(`skill-inject: ${parts.join(" ")}`, "info");
+      ctx.ui.notify(
+        `skill-inject: +${selected.length} [${selected.map((s) => s.targetTool).join(",")}]`,
+        "info",
+      );
     } catch {
       // UI unavailable in some run modes — silent best-effort
     }
 
-    return injectionResult("lc-skills", block);
+    return injectionResult("lc-skills", skillBlock);
   });
 }

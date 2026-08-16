@@ -1,7 +1,7 @@
 // Where little-coder's per-turn context augmentation lands (issue #73).
 //
-// Four extensions add a block of guidance to a turn: skill-inject (tool skill
-// cards + the research directive), knowledge-inject (algorithm reference
+// Extensions add blocks of guidance to a turn: skill-inject (tool skill
+// cards), knowledge-inject (algorithm reference
 // entries). Both used to append to the SYSTEM PROMPT.
 //
 // That destroyed the KV cache. The system prompt is the first thing in the

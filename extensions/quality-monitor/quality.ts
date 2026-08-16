@@ -77,39 +77,24 @@ export function assessResponse(
 
 export function buildCorrectionMessage(reason: string): string {
   const corrections: Record<string, string> = {
-    empty_response:
-      "Your previous response was empty. Please respond with either " +
-      "text or a tool call to make progress on the task.",
-    empty_tool_name:
-      "Your tool call had an empty name. Please specify a valid tool name. " +
-      "Available tools include: Read, Write, Edit, Bash, Glob, Grep.",
-    repeated_tool_call:
-      "You just made the exact same tool call as your previous turn. " +
-      "This suggests you may be stuck in a loop. Please try a different " +
-      "approach or explain what you're trying to accomplish.",
+    empty_response: "No response produced. Continue the task.",
+    empty_tool_name: "Blocked: tool name is empty. Use an available tool.",
+    repeated_tool_call: "Blocked: identical tool call repeated. Use a different action.",
   };
 
   if (reason.startsWith("unknown_tool:")) {
     const toolName = reason.slice("unknown_tool:".length);
-    return (
-      `Tool '${toolName}' does not exist. ` +
-      "Available tools are: Read, Write, Edit, Bash, Glob, Grep, " +
-      "the web-search MCP tools. Please use one of these."
-    );
+    return `Blocked: tool '${toolName}' does not exist. Use an available tool.`;
   }
   if (reason.startsWith("malformed_args:")) {
     const toolName = reason.slice("malformed_args:".length);
-    return (
-      `The arguments for tool '${toolName}' were malformed (not valid JSON). ` +
-      "Please provide the arguments as a proper JSON object."
-    );
+    return `Blocked: invalid JSON arguments for ${toolName}. Retry with valid JSON.`;
   }
 
-  return corrections[reason] ?? `Issue detected: ${reason}. Please try again.`;
+  return corrections[reason] ?? `Blocked: ${reason}. Use a different action.`;
 }
 
-// Short, user-facing phrasing for the harness-intervention line (distinct from
-// buildCorrectionMessage, which is the verbose text sent to the model).
+// Short, user-facing phrasing for the harness-intervention line.
 export function phraseForUser(reason: string): string {
   if (reason.startsWith("unknown_tool:")) {
     return `the model called a tool that doesn't exist (${reason.slice("unknown_tool:".length)})`;

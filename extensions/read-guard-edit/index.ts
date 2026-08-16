@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { normalizeWritePath } from "../write-guard/index.ts";
 import { harnessIntervention } from "../_shared/intervention.ts";
+import { knownFiles } from "../_shared/known-files.ts";
 
 // Read-before-edit guard.
 //
@@ -26,7 +27,7 @@ import { harnessIntervention } from "../_shared/intervention.ts";
 
 // Files read (or authored) in the current session. Module-scoped: one pi
 // process drives one session at a time, and we clear on session_start.
-export const readFiles = new Set<string>();
+export const readFiles = knownFiles;
 
 // pi's built-in tools use `path`; some prompts/older builds use `file_path`.
 // Accept both so the guard is independent of which key the model emits.
@@ -45,15 +46,7 @@ export function resolveToolPath(
 }
 
 export function editBeforeReadReason(resolved: string): string {
-  return (
-    `File must be read first before edit — ${resolved} has not been read in ` +
-    `this session.\n` +
-    `\n` +
-    `Read ${resolved} first to get the exact current text for oldText ` +
-    `(whitespace and indentation must match exactly), then issue the Edit. ` +
-    `Reading also lets you include enough surrounding context (2-3 lines) to ` +
-    `make oldText unique in the file. Do NOT guess the file's contents.`
-  );
+  return `Blocked: ${resolved} has not been read this session. Read it, then retry Edit using the exact current text.`;
 }
 
 export default function (pi: ExtensionAPI) {
