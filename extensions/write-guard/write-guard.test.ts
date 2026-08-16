@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import setupWriteGuard, { normalizeWritePath, isReservedDeviceName } from "./index.ts";
 import { knownFiles } from "../_shared/known-files.ts";
@@ -32,6 +32,12 @@ describe("normalizeWritePath", () => {
     });
     expect(normalizeWritePath("a/b/c.md", cwd)).toEqual({
       path: "/home/me/proj/a/b/c.md",
+    });
+  });
+
+  it("expands home-relative paths consistently across tools", () => {
+    expect(normalizeWritePath("~/Documents/project/file.ts", cwd)).toEqual({
+      path: join(homedir(), "Documents/project/file.ts"),
     });
   });
 

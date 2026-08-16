@@ -144,7 +144,7 @@ describe("thinking-budget recovery (issue #8)", () => {
     expect(h.calls).toEqual(["set:off", "send", "notify", "abort"]);
     expect(h.level()).toBe("off");
     expect(h.followUps).toHaveLength(1);
-    expect(h.followUps[0]).toMatch(/thinking budget exceeded/i);
+    expect(h.followUps[0]).toBe("Thinking budget exceeded. Implement the solution now.");
     expect(h.notifies[0]).toMatch(/harness intervention:.*thought long enough/i);
   });
 
@@ -229,12 +229,32 @@ describe("thinking-budget recovery (issue #8)", () => {
     expect(h.level()).toBe("off");
 
     // A new user prompt ends the forced-off window and restores the level.
-    await fire(h.pi, "input", { text: "next task" }, h.ctx);
+    await fire(h.pi, "input", { text: "next task", source: "interactive" }, h.ctx);
     expect(h.level()).toBe("medium");
 
     // And the force is cleared: a subsequent turn does NOT re-disable thinking.
     await fire(h.pi, "turn_start", {}, h.ctx);
     expect(h.level()).toBe("medium");
+  });
+
+  it("does not restore thinking for the extension-generated recovery follow-up", async () => {
+    const h = makeHarness("medium");
+    setupExtension(h.pi as any);
+    await startRun(h);
+    await fire(h.pi, "message_update", thinkingDelta("x".repeat(8000)), h.ctx);
+    expect(h.level()).toBe("off");
+
+    await fire(
+      h.pi,
+      "input",
+      { text: "Thinking budget exceeded. Continue with tools.", source: "extension" },
+      h.ctx,
+    );
+
+    expect(h.level()).toBe("off");
+    const handler = h.pi.handlers["before_provider_request"]?.[0];
+    const payload = await handler?.({ payload: { reasoning_effort: "medium" } }, h.ctx);
+    expect(payload?.reasoning_effort).toBe("none");
   });
 
   it("a fresh task (no prior breach) is never forced off", async () => {

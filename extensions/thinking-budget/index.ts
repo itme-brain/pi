@@ -123,10 +123,15 @@ export default function (pi: ExtensionAPI) {
     aborted = false;
   });
 
-  // A genuinely new user prompt ends the "forced off" window: restore the
-  // level the user actually had before the breach. Programmatic follow-ups
-  // (our nudge) do not emit an `input` event, so the restart turn stays off.
-  pi.on("input", async () => {
+  // A genuinely new user prompt ends the "forced off" window and restores the
+  // level the user had before the breach. Programmatic follow-ups emit this
+  // event too, identified by source:"extension", and remain forced off.
+  pi.on("input", async (event) => {
+    // Extension-generated recovery/correction messages also emit `input`.
+    // They are part of the current task and must not release the forced-off
+    // window. Only an actual external prompt starts a new task.
+    if ((event as any).source === "extension") return;
+
     if (forcedOff) {
       if (priorLevel !== undefined) safeSetThinkingLevel(pi, priorLevel);
       forcedOff = false;
@@ -189,8 +194,7 @@ export default function (pi: ExtensionAPI) {
     safeSetThinkingLevel(pi, "off");
     try {
       pi.sendUserMessage(
-        "[thinking budget exceeded] Please commit to an implementation now. " +
-          "Stop deliberating and use your tools to make progress.",
+        "Thinking budget exceeded. Implement the solution now.",
         { deliverAs: "followUp" },
       );
     } catch {

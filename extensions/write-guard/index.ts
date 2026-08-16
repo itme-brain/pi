@@ -1,5 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { basename, isAbsolute, join } from "node:path";
 import { harnessIntervention } from "../_shared/intervention.ts";
 import { knownFiles } from "../_shared/known-files.ts";
@@ -54,6 +55,12 @@ export function normalizeWritePath(
   filePath: string,
   cwd: string = process.cwd(),
 ): { path: string; rewrittenFrom?: string } {
+  // Tool implementations do not all normalize `~` at the same stage. Read
+  // results may retain it while Write calls arrive expanded, which would make
+  // the shared read-before-write registry treat one file as two paths.
+  if (filePath === "~") return { path: homedir() };
+  if (filePath.startsWith("~/")) return { path: join(homedir(), filePath.slice(2)) };
+
   if (/^\/[^/]+$/.test(filePath)) {
     return { path: join(cwd, filePath.slice(1)), rewrittenFrom: filePath };
   }

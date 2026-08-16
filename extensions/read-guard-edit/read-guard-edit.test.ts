@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import setupReadGuardEdit, { readFiles, resolveToolPath } from "./index.ts";
 
 describe("resolveToolPath", () => {
@@ -88,6 +90,20 @@ describe("read-before-edit guard", () => {
     await h.tool_result({ toolName: "read", isError: false, input: { path: "src/a.ts" } }, ctx);
     const result = await h.tool_call(
       { toolName: "edit", input: { path: "/home/me/proj/src/a.ts" } },
+      ctx,
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("matches a tilde Read with an expanded absolute mutation path", async () => {
+    const h = setup();
+    const ctx = makeCtx(cwd);
+    await h.tool_result(
+      { toolName: "read", isError: false, input: { path: "~/project/a.ts" } },
+      ctx,
+    );
+    const result = await h.tool_call(
+      { toolName: "edit", input: { path: join(homedir(), "project/a.ts") } },
       ctx,
     );
     expect(result).toBeUndefined();
