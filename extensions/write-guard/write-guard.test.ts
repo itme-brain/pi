@@ -2,8 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import setupWriteGuard, { normalizeWritePath, isReservedDeviceName } from "./index.ts";
-import { knownFiles } from "../_shared/known-files.ts";
+import setupWriteGuard, {
+  editBeforeReadReason,
+  isReservedDeviceName,
+  knownFiles,
+  normalizeWritePath,
+  resolveToolPath,
+} from "./index.ts";
 
 describe("normalizeWritePath", () => {
   const cwd = "/home/me/proj";
@@ -57,6 +62,94 @@ describe("normalizeWritePath", () => {
     expect(normalizeWritePath("/home/me/proj/notes/plan.md", cwd)).toEqual({
       path: "/home/me/proj/notes/plan.md",
     });
+  });
+});
+
+describe("unified read-before-mutation state", () => {
+  const cwd = "/home/me/proj";
+
+  function setup() {
+    const handlers: Record<string, Array<(event: any, ctx: any) => any>> = {};
+    setupWriteGuard({
+      on(name: string, handler: (event: any, ctx: any) => any) {
+        (handlers[name] ??= []).push(handler);
+      },
+    } as any);
+    const fire = async (name: string, event: any, ctx = makeCtx(cwd)) => {
+      for (const handler of handlers[name] ?? []) {
+        const result = await handler(event, ctx);
+        if (result?.block) return result;
+      }
+    };
+    return { fire };
+  }
+
+  beforeEach(() => knownFiles.clear());
+
+  it("blocks Edit before Read and allows it after Read", async () => {
+    const h = setup();
+    const edit = { toolName: "edit", input: { path: "a.ts", edits: [] } };
+    expect((await h.fire("tool_call", edit))?.reason).toBe(
+      editBeforeReadReason("/home/me/proj/a.ts"),
+    );
+    await h.fire("tool_result", {
+      toolName: "read",
+      isError: false,
+      input: { path: "a.ts" },
+    });
+    expect(await h.fire("tool_call", edit)).toBeUndefined();
+  });
+
+  it("records a tilde Read for an expanded absolute Write", async () => {
+    const h = setup();
+    await h.fire("tool_result", {
+      toolName: "read",
+      isError: false,
+      input: { path: "~/project/a.ts" },
+    });
+    expect(knownFiles.has(join(homedir(), "project/a.ts"))).toBe(true);
+  });
+
+  it("allows Write after the same extension observes a successful Read", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wg-unified-"));
+    const existing = join(dir, "existing.ts");
+    writeFileSync(existing, "old\n");
+    try {
+      const h = setup();
+      const ctx = makeCtx(dir);
+      await h.fire(
+        "tool_result",
+        { toolName: "read", isError: false, input: { path: existing } },
+        ctx,
+      );
+      expect(
+        await h.fire(
+          "tool_call",
+          { toolName: "write", input: { path: existing, content: "new\n" } },
+          ctx,
+        ),
+      ).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not record failed reads and clears state on session start", async () => {
+    const h = setup();
+    await h.fire("tool_result", {
+      toolName: "read",
+      isError: true,
+      input: { path: "a.ts" },
+    });
+    expect(knownFiles.size).toBe(0);
+    knownFiles.add("/known");
+    await h.fire("session_start", {});
+    expect(knownFiles.size).toBe(0);
+  });
+
+  it("resolves both path argument spellings", () => {
+    expect(resolveToolPath({ path: "a.ts" }, cwd)).toBe("/home/me/proj/a.ts");
+    expect(resolveToolPath({ file_path: "b.ts" }, cwd)).toBe("/home/me/proj/b.ts");
   });
 });
 

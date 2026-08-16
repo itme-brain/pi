@@ -59,8 +59,7 @@ settings.json pi settings
 | | |
 |---|---|
 | `quality-monitor` | Detects loops/dead-ends, steers hidden self-correction, and prunes monitor noise |
-| `write-guard` | Requires Read before overwriting existing files, including through the shell |
-| `read-guard-edit` | Refuses Edit until the file has been read in the session |
+| `write-guard` | Requires Read before Edit or overwriting existing files, including through the shell |
 | `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |
 | `knowledge-inject` | Loads `skills/knowledge/*.md` based on relevance |

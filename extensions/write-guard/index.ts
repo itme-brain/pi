@@ -3,8 +3,12 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join } from "node:path";
 import { harnessIntervention } from "../_shared/intervention.ts";
-import { knownFiles } from "../_shared/known-files.ts";
 import { detectWriteTargets } from "../_shared/shell-write.ts";
+
+// Files read or authored in this session. Keeping this state in the same
+// extension that enforces both Edit and Write avoids cross-extension module
+// isolation producing separate registries.
+export const knownFiles = new Set<string>();
 
 // Windows reserved device names. Writing to a file whose basename is one of
 // these (with or without an extension, any case) targets a DOS device rather
@@ -57,7 +61,7 @@ export function normalizeWritePath(
 ): { path: string; rewrittenFrom?: string } {
   // Tool implementations do not all normalize `~` at the same stage. Read
   // results may retain it while Write calls arrive expanded, which would make
-  // the shared read-before-write registry treat one file as two paths.
+  // the read-before-mutation registry treat one file as two paths.
   if (filePath === "~") return { path: homedir() };
   if (filePath.startsWith("~/")) return { path: join(homedir(), filePath.slice(2)) };
 
@@ -79,12 +83,24 @@ function pathKey(input: Record<string, unknown>): "path" | "file_path" | undefin
   return undefined;
 }
 
+export function resolveToolPath(
+  input: Record<string, unknown>,
+  cwd: string,
+): string | undefined {
+  const key = pathKey(input);
+  return key ? normalizeWritePath(String(input[key]), cwd).path : undefined;
+}
+
 // Tools that hand a string to a shell, and so can reach the filesystem without
 // going anywhere near the `write` tool (issue #70).
 const SHELL_TOOLS = new Set(["bash", "Bash", "ShellSession"]);
 
 function readBeforeOverwriteReason(resolved: string): string {
   return `Blocked: ${resolved} already exists and has not been read this session. Read it, then retry Write or use Edit.`;
+}
+
+export function editBeforeReadReason(resolved: string): string {
+  return `Blocked: ${resolved} has not been read this session. Read it, then retry Edit using the exact current text.`;
 }
 
 // The earlier implementation registered a *custom* `write`
@@ -145,6 +161,37 @@ export function writeVerdict(
 // whichever `write` implementation runs and lets us both normalize the path in
 // place and block the call before it executes.
 export default function (pi: ExtensionAPI) {
+  pi.on("session_start", async () => {
+    knownFiles.clear();
+  });
+
+  // A successful Read makes either mutation strategy valid. Successful Edit
+  // and Write calls keep the authored file known for subsequent mutations.
+  pi.on("tool_result", async (event, ctx) => {
+    const name = String((event as any).toolName ?? "").toLowerCase();
+    if (name !== "read" && name !== "edit" && name !== "write") return;
+    if ((event as any).isError) return;
+    const resolved = resolveToolPath(
+      ((event as any).input ?? {}) as Record<string, unknown>,
+      ctx.cwd,
+    );
+    if (resolved) knownFiles.add(resolved);
+  });
+
+  pi.on("tool_call", async (event, ctx) => {
+    if (String((event as any).toolName ?? "").toLowerCase() !== "edit") return;
+    const resolved = resolveToolPath(
+      ((event as any).input ?? {}) as Record<string, unknown>,
+      ctx.cwd,
+    );
+    if (!resolved || knownFiles.has(resolved)) return;
+    harnessIntervention(
+      ctx,
+      "the model tried to edit an unread file — redirected it to Read first.",
+    );
+    return { block: true, reason: editBeforeReadReason(resolved) };
+  });
+
   pi.on("tool_call", async (event, ctx) => {
     if (String((event as any).toolName ?? "").toLowerCase() !== "write") return;
     const input = ((event as any).input ?? {}) as Record<string, unknown>;
