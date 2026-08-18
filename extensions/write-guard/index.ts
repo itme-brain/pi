@@ -3,7 +3,6 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join } from "node:path";
 import { harnessIntervention } from "../_shared/intervention.ts";
-import { detectWriteTargets } from "../_shared/shell-write.ts";
 
 // Files read or authored in this session. Keeping this state in the same
 // extension that enforces both Edit and Write avoids cross-extension module
@@ -91,10 +90,6 @@ export function resolveToolPath(
   return key ? normalizeWritePath(String(input[key]), cwd).path : undefined;
 }
 
-// Tools that hand a string to a shell, and so can reach the filesystem without
-// going anywhere near the `write` tool (issue #70).
-const SHELL_TOOLS = new Set(["bash", "Bash", "ShellSession"]);
-
 function readBeforeOverwriteReason(resolved: string): string {
   return `Blocked: ${resolved} already exists and has not been read this session. Read it, then retry Write or use Edit.`;
 }
@@ -119,16 +114,10 @@ export interface WriteVerdict {
 
 /**
  * Decide whether `resolved` (an already-normalized absolute path) may be
- * written. Shared by the `write` tool and the shell guard so both refuse the
- * same destinations for the same reasons.
- *
- * @param truncates whether the operation replaces existing content. A shell
- *   append (`>>`) doesn't destroy anything, so it is allowed without a prior
- *   read; a reserved device name is still refused either way.
+ * written by the structured Write tool.
  */
 export function writeVerdict(
   resolved: string,
-  truncates = true,
   hasBeenRead = false,
 ): WriteVerdict | null {
   // Reserved Windows device name (nul, con, com1, …): refuse outright. On
@@ -142,7 +131,6 @@ export function writeVerdict(
     };
   }
 
-  if (!truncates) return null; // append — nothing is lost
   if (!existsSync(resolved)) return null; // new file — allow it through
   if (hasBeenRead) return null; // informed replacement — allow either Write or Edit
 
@@ -169,8 +157,9 @@ export default function (pi: ExtensionAPI) {
   // and Write calls keep the authored file known for subsequent mutations.
   pi.on("tool_result", async (event, ctx) => {
     const name = String((event as any).toolName ?? "").toLowerCase();
-    if (name !== "read" && name !== "edit" && name !== "write") return;
     if ((event as any).isError) return;
+
+    if (name !== "read" && name !== "edit" && name !== "write") return;
     const resolved = resolveToolPath(
       ((event as any).input ?? {}) as Record<string, unknown>,
       ctx.cwd,
@@ -203,40 +192,10 @@ export default function (pi: ExtensionAPI) {
     // the resolved path even when we don't block (e.g. the `/foo.md` → cwd fix).
     input[key] = resolved;
 
-    const verdict = writeVerdict(resolved, true, knownFiles.has(resolved));
+    const verdict = writeVerdict(resolved, knownFiles.has(resolved));
     if (!verdict) return;
     harnessIntervention(ctx, verdict.intervention);
     return { block: true, reason: verdict.reason };
   });
 
-  // Issue #70: the same guarantee, for the shell. `write` being refused pushed
-  // models straight to `cat > file << 'EOF'`, which reached the identical bytes
-  // through a tool the guard never looked at — rvanswieten hit it 5x in one
-  // session (main.py x3, App.jsx, pyproject.toml).
-  //
-  // In auto/manual permission mode, permission-gate refuses shell writes before
-  // this ever runs. In accept-all mode (benchmarks) it doesn't, so this is the
-  // layer that applies the same read-before-overwrite policy there.
-  pi.on("tool_call", async (event, ctx) => {
-    if (!SHELL_TOOLS.has(String((event as any).toolName ?? ""))) return;
-    const cmd = ((event as any).input ?? {})?.command;
-    if (typeof cmd !== "string" || !cmd) return;
-
-    for (const write of detectWriteTargets(cmd)) {
-      const { path: resolved } = normalizeWritePath(write.path, ctx.cwd);
-      const verdict = writeVerdict(
-        resolved,
-        write.kind !== "append",
-        knownFiles.has(resolved),
-      );
-      if (!verdict) continue;
-      harnessIntervention(ctx, verdict.intervention);
-      return {
-        block: true,
-        reason: isReservedDeviceName(resolved)
-          ? verdict.reason
-          : `Blocked: this command overwrites unread file ${resolved}. Read it, then retry.`,
-      };
-    }
-  });
 }

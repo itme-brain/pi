@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export default function (pi: ExtensionAPI) {
   pi.on("before_provider_request", (event, ctx) => {
-    if (ctx.model?.provider !== "llamacpp") return;
+    if (ctx.model?.provider !== "llama.cpp") return;
 
     const payload = event.payload as Record<string, unknown>;
 

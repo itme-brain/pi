@@ -47,10 +47,10 @@ Required env vars:
 ## Layout
 
 ```
-extensions/   small-model survival kit
+extensions/   agent tools and safety guards
 skills/       tool guidance + compact knowledge cards
 mcp.json      web-search MCP server config
-models.json   custom llamacpp provider
+models.json   model-specific provider overrides
 settings.json pi settings
 ```
 
@@ -58,9 +58,7 @@ settings.json pi settings
 
 | | |
 |---|---|
-| `quality-monitor` | Detects loops/dead-ends, steers hidden self-correction, and prunes monitor noise |
-| `write-guard` | Requires Read before Edit or overwriting existing files, including through the shell |
-| `thinking-budget` | Caps thinking tokens with retry-without-thinking fallback |
+| `write-guard` | Requires Read before structured Edit or Write calls on existing files |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |
 | `knowledge-inject` | Loads `skills/knowledge/*.md` based on relevance |
 | `extra-tools` | Bounded file glob with broad-search steering |

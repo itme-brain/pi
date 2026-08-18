@@ -1,16 +1,13 @@
 // Shared presentation for "harness intervention" events — the moments where
 // little-coder's scaffolding overrides or redirects the model rather than the
-// model deciding for itself (thinking-budget cap, write-guard redirect,
-// turn-cap, finalize-warn, quality-monitor corrections, output-parser nudges).
+// model deciding for itself (write-guard redirects and similar guardrails).
 //
 // Before this helper each extension emitted its own free-form `ctx.ui.notify`
-// in a different voice and severity, so a single harness decision (e.g. a
-// thinking-budget abort) surfaced as several stacked warnings plus pi's own
-// "Operation aborted" marker. Routing every such message through one helper
+// in a different voice and severity. Routing every such message through one helper
 // gives the user a single, consistently-worded line:
 //
-//     harness intervention: the model has thought long enough — forcing it to
-//     start implementing.
+//     harness intervention: the model tried to overwrite an unread file —
+//     redirected it to Read first.
 //
 // This dir intentionally has no `index.ts`, so the launcher's extension
 // auto-discovery (bin/little-coder.mjs: requires `<subdir>/index.ts`) skips
@@ -33,8 +30,8 @@ export interface InterventionCtx {
  * @param message The human explanation of what the harness did and why,
  *                phrased as a continuation of "harness intervention: ".
  *                Lead with the consequence, e.g.
- *                "the model has thought long enough — forcing it to start
- *                implementing."
+ *                "the model tried to overwrite an unread file — redirected
+ *                it to Read first."
  */
 export function harnessIntervention(ctx: InterventionCtx, message: string): void {
   ctx.ui.notify(`harness intervention: ${message}`, "info");

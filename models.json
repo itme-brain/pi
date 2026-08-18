@@ -1,19 +1,9 @@
 {
   "providers": {
-    "llamacpp": {
-      "baseUrl": "https://ai.ramos.codes/v1",
-      "api": "openai-completions",
-      "apiKey": "$LLAMA_API_KEY",
-      "compat": {
-        "supportsReasoningEffort": true,
-        "thinkingFormat": "openai"
-      },
-      "models": [
-        {
-          "id": "local",
-          "name": "ai.ramos.codes",
-          "contextWindow": 262144,
-          "maxTokens": 32768,
+    "llama.cpp": {
+      "modelOverrides": {
+        "Qwen3.8-27B": {
+          "name": "Qwen 3.8 27B",
           "reasoning": true,
           "thinkingLevelMap": {
             "off": "none",
@@ -23,9 +13,13 @@
             "high": "xhigh",
             "xhigh": null,
             "max": null
+          },
+          "compat": {
+            "supportsReasoningEffort": true,
+            "thinkingFormat": "openai"
           }
         }
-      ]
+      }
     }
   }
 }
