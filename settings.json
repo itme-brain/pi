@@ -19,7 +19,7 @@
     "npm:pi-mcp-adapter",
     "npm:@aaronkyriesenbach/pi-frozen-defaults"
   ],
-  "defaultThinkingLevel": "off",
+  "defaultThinkingLevel": "medium",
   "terminal": {
     "showTerminalProgress": false
   }
