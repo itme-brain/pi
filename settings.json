@@ -8,9 +8,6 @@
     "maxRetries": 2
   },
   "lastChangelogVersion": "0.84.2",
-  "images": {
-    "blockImages": true
-  },
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
   "treeFilterMode": "default",
