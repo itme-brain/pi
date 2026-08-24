@@ -7,7 +7,7 @@
     "enabled": true,
     "maxRetries": 2
   },
-  "lastChangelogVersion": "0.84.2",
+  "lastChangelogVersion": "0.84.3",
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
   "treeFilterMode": "default",
@@ -19,5 +19,7 @@
   "defaultThinkingLevel": "medium",
   "terminal": {
     "showTerminalProgress": false
-  }
+  },
+  "defaultProvider": "llama.cpp",
+  "defaultModel": "Qwen3.8-27B"
 }

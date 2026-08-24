@@ -3,7 +3,7 @@
     "llama.cpp": {
       "modelOverrides": {
         "Qwen3.8-27B": {
-          "name": "Qwen 3.8 27B",
+          "name": "Qwen3.8-27B",
           "reasoning": true,
           "thinkingLevelMap": {
             "off": "none",
