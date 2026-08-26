@@ -7,8 +7,6 @@ describe("parseSkillFile", () => {
 name: read-guidance
 type: tool-guidance
 target_tool: Read
-priority: 10
-token_cost: 100
 user-invocable: false
 ---
 ## Read Tool
@@ -17,8 +15,6 @@ Body content here.`;
     expect(p).not.toBeNull();
     expect(p!.frontmatter.name).toBe("read-guidance");
     expect(p!.frontmatter.target_tool).toBe("Read");
-    expect(p!.frontmatter.token_cost).toBe(100);
-    expect(p!.frontmatter.priority).toBe(10);
     expect(p!.body.startsWith("## Read Tool")).toBe(true);
   });
 
@@ -27,7 +23,6 @@ Body content here.`;
 name: bfs-state-space
 type: domain-knowledge
 topic: State-Space Search
-token_cost: 120
 keywords: [bucket, pouring, state space, minimum moves, shortest sequence]
 ---
 When a problem asks for minimum moves.`;
@@ -41,14 +36,14 @@ When a problem asks for minimum moves.`;
 
   it("parses requires_tools arrays", () => {
     const text = `---
-name: workspace-docs
-topic: Workspace Documentation
-keywords: [spec, readme]
-requires_tools: [Read, Glob]
+name: api-symbols
+topic: API Symbols
+keywords: [api, library]
+requires_tools: [Glob, Grep, Read]
 ---
 body`;
     const p = parseSkillFile(text);
-    expect(p!.frontmatter.requires_tools).toEqual(["Read", "Glob"]);
+    expect(p!.frontmatter.requires_tools).toEqual(["Glob", "Grep", "Read"]);
   });
 
   it("returns null on missing frontmatter", () => {

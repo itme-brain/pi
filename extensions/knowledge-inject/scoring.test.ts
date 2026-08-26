@@ -58,18 +58,18 @@ describe("knowledge directory loads from repo", () => {
     expect(readdirSync(kDir).filter((f) => f.endsWith(".md")).length).toBeGreaterThan(0);
   });
 
-  it("every knowledge entry has topic + keywords in frontmatter", () => {
+  it("every knowledge entry has topic, keywords, and required tools", () => {
     const files = readdirSync(kDir).filter((f) => f.endsWith(".md"));
     for (const file of files) {
       const parsed = parseSkillFile(readFileSync(join(kDir, file), "utf-8"));
       expect(parsed, `${file} should parse`).not.toBeNull();
       expect(typeof (parsed!.frontmatter.topic ?? parsed!.frontmatter.name)).toBe("string");
       expect(Array.isArray(parsed!.frontmatter.keywords), `${file} keywords`).toBe(true);
+      expect(Array.isArray(parsed!.frontmatter.requires_tools), `${file} requires_tools`).toBe(true);
+      expect(
+        (parsed!.frontmatter.requires_tools as string[]).every((tool) => typeof tool === "string"),
+        `${file} requires_tools entries`,
+      ).toBe(true);
     }
-  });
-
-  it("workspace_docs declares requires_tools", () => {
-    const parsed = parseSkillFile(readFileSync(join(kDir, "workspace_docs.md"), "utf-8"));
-    expect(parsed!.frontmatter.requires_tools).toEqual(["read", "glob"]);
   });
 });

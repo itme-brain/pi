@@ -2,7 +2,6 @@
 name: write-guidance
 type: tool-guidance
 target_tool: Write
-priority: 10
 user-invocable: false
 ---
 Use Write with an exact path and complete file content. New files are allowed

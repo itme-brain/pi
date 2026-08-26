@@ -2,9 +2,8 @@
 name: read-guidance
 type: tool-guidance
 target_tool: Read
-priority: 10
 user-invocable: false
 ---
-Read an absolute file path with numbered lines. For large files, use `limit` and
-zero-based `offset` for focused chunks of roughly 100–200 lines. Output is
-`line_number<TAB>content`.
+Read a known absolute path; use Glob to find files and Grep to search contents.
+For large files, use `limit` and zero-based `offset` for 100–200-line chunks.
+Output is `line_number<TAB>content`.

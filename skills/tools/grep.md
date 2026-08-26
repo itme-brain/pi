@@ -2,10 +2,9 @@
 name: grep-guidance
 type: tool-guidance
 target_tool: Grep
-priority: 8
 user-invocable: false
 ---
-Search file contents with ripgrep regex and return matching paths, line numbers,
-and text. Use `literal: true` for plain text, `glob` to restrict file types,
-`ignoreCase` for case-insensitive search, and `context` for nearby lines.
-Search a focused `path` and set `limit` when results may be broad (default 100).
+Search file contents; use Glob for filenames. Uses ripgrep regex and returns
+paths, line numbers, and text. Use `literal` for plain text, `glob` to filter
+files, `ignoreCase` to fold case, and `context` for nearby lines. Use a focused
+`path` and bound broad results with `limit` (default 100).

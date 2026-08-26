@@ -2,7 +2,6 @@
 name: edit-guidance
 type: tool-guidance
 target_tool: Edit
-priority: 10
 user-invocable: false
 ---
 Use Edit for targeted changes to an existing file. Read the file first. Each

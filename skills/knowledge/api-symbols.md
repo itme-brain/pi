@@ -1,7 +1,6 @@
 ---
 name: api-symbols
 type: domain-knowledge
-token_cost: 70
 keywords: [implement, install, import, use, library, package, framework, module, api, function, class, method, hook, component]
 requires_tools: [glob, grep, read]
 user-invocable: false
