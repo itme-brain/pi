@@ -16,7 +16,24 @@
           },
           "compat": {
             "supportsReasoningEffort": true,
-            "thinkingFormat": "openai"
+            "thinkingFormat": "deepseek"
+          }
+        },
+        "Qwen3.8-Flash-Next": {
+          "name": "Qwen3.8-Flash-Next",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": "none",
+            "minimal": null,
+            "low": "low",
+            "medium": "medium",
+            "high": "xhigh",
+            "xhigh": null,
+            "max": null
+          },
+          "compat": {
+            "supportsReasoningEffort": true,
+            "thinkingFormat": "deepseek"
           }
         }
       }
