@@ -1,6 +1,7 @@
 {
   "providers": {
     "llama.cpp": {
+      "name": "ai.ramos.codes",
       "modelOverrides": {
         "Qwen3.8-27B": {
           "name": "Qwen3.8-27B",
@@ -16,7 +17,7 @@
           },
           "compat": {
             "supportsReasoningEffort": true,
-            "thinkingFormat": "deepseek"
+            "thinkingFormat": "qwen-chat-template"
           }
         },
         "Qwen3.8-Flash-Next": {
@@ -33,7 +34,7 @@
           },
           "compat": {
             "supportsReasoningEffort": true,
-            "thinkingFormat": "deepseek"
+            "thinkingFormat": "qwen-chat-template"
           }
         }
       }

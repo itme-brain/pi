@@ -16,10 +16,10 @@
     "npm:pi-mcp-adapter",
     "npm:@aaronkyriesenbach/pi-frozen-defaults"
   ],
-  "defaultThinkingLevel": "medium",
   "terminal": {
     "showTerminalProgress": false
   },
-  "defaultProvider": "llama.cpp",
-  "defaultModel": "Qwen3.8-27B"
+  "enabledModels": [
+    "llama.cpp/*"
+  ]
 }
