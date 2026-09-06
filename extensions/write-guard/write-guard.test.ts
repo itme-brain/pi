@@ -8,6 +8,8 @@ import setupWriteGuard, {
   knownFiles,
   normalizeWritePath,
   resolveToolPath,
+  shellOutputShowsFile,
+  shellReadCandidates,
 } from "./index.ts";
 
 describe("normalizeWritePath", () => {
@@ -147,9 +149,108 @@ describe("unified read-before-mutation state", () => {
     expect(knownFiles.size).toBe(0);
   });
 
+  it("allows Edit after cat returned the file content through Bash", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wg-bash-read-"));
+    const file = join(dir, "a file.ts");
+    const content = "export const answer = 42;\n";
+    writeFileSync(file, content);
+    try {
+      const h = setup();
+      const ctx = makeCtx(dir);
+      await h.fire("tool_result", {
+        toolName: "bash",
+        isError: false,
+        input: { command: "cat 'a file.ts'" },
+        content: [{ type: "text", text: content }],
+      }, ctx);
+      expect(knownFiles.has(file)).toBe(true);
+      expect(await h.fire("tool_call", {
+        toolName: "edit",
+        input: { path: file, edits: [] },
+      }, ctx)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("records a substantive partial sed read", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wg-bash-sed-"));
+    const file = join(dir, "a.ts");
+    writeFileSync(file, "first line\nconst meaningful = true;\nlast line\n");
+    try {
+      const h = setup();
+      await h.fire("tool_result", {
+        toolName: "bash",
+        isError: false,
+        input: { command: "sed -n '2p' a.ts" },
+        content: [{ type: "text", text: "const meaningful = true;\n" }],
+      }, makeCtx(dir));
+      expect(knownFiles.has(file)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not record failed, redirected, or unrelated shell reads", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wg-bash-no-read-"));
+    const file = join(dir, "a.ts");
+    writeFileSync(file, "export const definitelyCurrent = true;\n");
+    try {
+      const h = setup();
+      const ctx = makeCtx(dir);
+      for (const event of [
+        {
+          toolName: "bash", isError: true,
+          input: { command: "cat a.ts" },
+          content: [{ type: "text", text: "export const definitelyCurrent = true;\n" }],
+        },
+        {
+          toolName: "bash", isError: false,
+          input: { command: "cat a.ts > copy.ts" },
+          content: [{ type: "text", text: "(no output)" }],
+        },
+        {
+          toolName: "bash", isError: false,
+          input: { command: "ls a.ts" },
+          content: [{ type: "text", text: "a.ts\n" }],
+        },
+      ]) await h.fire("tool_result", event, ctx);
+      expect(knownFiles.has(file)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("resolves both path argument spellings", () => {
     expect(resolveToolPath({ path: "a.ts" }, cwd)).toBe("/home/me/proj/a.ts");
     expect(resolveToolPath({ file_path: "b.ts" }, cwd)).toBe("/home/me/proj/b.ts");
+  });
+});
+
+describe("shell read detection", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "wg-shell-detect-"));
+    writeFileSync(join(dir, "one.ts"), "const one = 1;\n");
+    writeFileSync(join(dir, "two words.ts"), "const two = 2;\n");
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("finds explicit file arguments across common readers and pipelines", () => {
+    expect(shellReadCandidates(
+      "sed -n '1,20p' one.ts && cat 'two words.ts' | head -n 5",
+      dir,
+    )).toEqual([join(dir, "one.ts"), join(dir, "two words.ts")]);
+  });
+
+  it("rejects dynamic paths and non-reader commands", () => {
+    expect(shellReadCandidates("cat *.ts; cat $FILE; stat one.ts", dir)).toEqual([]);
+  });
+
+  it("requires exact returned file content", () => {
+    const file = join(dir, "one.ts");
+    expect(shellOutputShowsFile("const one = 1;\n", file)).toBe(true);
+    expect(shellOutputShowsFile("one.ts\n", file)).toBe(false);
   });
 });
 

@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, isAbsolute, join } from "node:path";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import { harnessIntervention } from "../_shared/intervention.ts";
 
 // Files read or authored in this session. Keeping this state in the same
@@ -90,6 +90,154 @@ export function resolveToolPath(
   return key ? normalizeWritePath(String(input[key]), cwd).path : undefined;
 }
 
+// Shell commands are expressive enough that trying to prove arbitrary file
+// access from the command string alone is a losing game (variables, functions,
+// substitutions, globs, and redirects all matter). Keep this deliberately
+// conservative: find explicit regular-file arguments to familiar readers, then
+// separately require their bytes to be visible in the successful tool result.
+const SHELL_READERS = new Set([
+  "awk",
+  "cat",
+  "grep",
+  "head",
+  "rg",
+  "sed",
+  "tail",
+]);
+
+/** Split shell text into commands and words, sufficient for explicit paths. */
+function shellCommands(command: string): string[][] {
+  const commands: string[][] = [];
+  let words: string[] = [];
+  let word = "";
+  let quote: "'" | '"' | null = null;
+
+  const pushWord = () => {
+    if (word) words.push(word);
+    word = "";
+  };
+  const pushCommand = () => {
+    pushWord();
+    if (words.length) commands.push(words);
+    words = [];
+  };
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i];
+    if (quote === "'") {
+      if (ch === "'") quote = null;
+      else word += ch;
+      continue;
+    }
+    if (quote === '"') {
+      if (ch === '"') quote = null;
+      else if (ch === "\\" && i + 1 < command.length) word += command[++i];
+      else word += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      continue;
+    }
+    if (ch === "\\" && i + 1 < command.length) {
+      word += command[++i];
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (ch === "\n") pushCommand();
+      else pushWord();
+      continue;
+    }
+    if (ch === ";" || ch === "|") {
+      pushCommand();
+      if (command[i + 1] === ch) i++;
+      continue;
+    }
+    if (ch === "&" && command[i + 1] === "&") {
+      pushCommand();
+      i++;
+      continue;
+    }
+    // Redirection targets are not reader arguments. End this command at the
+    // redirect; later chained commands will still be discovered normally.
+    if (ch === ">" || ch === "<") {
+      pushWord();
+      while (i + 1 < command.length && command[i + 1] === ch) i++;
+      while (i + 1 < command.length && command[i + 1] !== "\n" &&
+        command[i + 1] !== ";" && command[i + 1] !== "|" && command[i + 1] !== "&") i++;
+      continue;
+    }
+    word += ch;
+  }
+  pushCommand();
+  return commands;
+}
+
+function resolveShellFile(token: string, cwd: string): string | undefined {
+  if (!token || token === "-" || token.startsWith("-") || /[$*?{}()[\]`]/.test(token)) {
+    return undefined;
+  }
+  const expanded = token === "~"
+    ? homedir()
+    : token.startsWith("~/")
+      ? join(homedir(), token.slice(2))
+      : token;
+  const candidate = isAbsolute(expanded) ? expanded : resolve(cwd, expanded);
+  try {
+    return statSync(candidate).isFile() ? candidate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Explicit regular files named as arguments to common shell readers. */
+export function shellReadCandidates(command: string, cwd: string): string[] {
+  const candidates = new Set<string>();
+  for (const words of shellCommands(command)) {
+    const reader = basename(words[0] ?? "");
+    if (!SHELL_READERS.has(reader)) continue;
+    for (const token of words.slice(1)) {
+      const file = resolveShellFile(token, cwd);
+      if (file) candidates.add(file);
+    }
+  }
+  return [...candidates];
+}
+
+/** True when stdout/stderr contains a substantive, exact slice of the file. */
+export function shellOutputShowsFile(output: string, filePath: string): boolean {
+  let file: string;
+  try {
+    // Avoid loading an unexpectedly huge file merely to account for a read.
+    if (statSync(filePath).size > 8 * 1024 * 1024) return false;
+    file = readFileSync(filePath, "utf8").replace(/\r\n/g, "\n");
+  } catch {
+    return false;
+  }
+  const shown = output.replace(/\r\n/g, "\n");
+  const whole = file.replace(/\n+$/, "");
+  if (whole && shown.includes(whole)) return true;
+
+  // A partial sed/head/tail read is enough, just as an offset/limited Read is
+  // today. Requiring a modest exact run avoids unlocking on generic output such
+  // as "ok", a line number, or a filename alone.
+  const fileLines = file.split("\n");
+  const shownLines = shown.split("\n");
+  for (let start = 0; start < shownLines.length; start++) {
+    for (let at = 0; at < fileLines.length; at++) {
+      let visible = 0;
+      for (let n = 0;
+        start + n < shownLines.length && at + n < fileLines.length &&
+        shownLines[start + n] === fileLines[at + n];
+        n++) {
+        visible += shownLines[start + n].trim().length;
+        if (visible >= 12) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function readBeforeOverwriteReason(resolved: string): string {
   return `Blocked: ${resolved} already exists and has not been read this session. Read it, then retry Write or use Edit.`;
 }
@@ -153,11 +301,26 @@ export default function (pi: ExtensionAPI) {
     knownFiles.clear();
   });
 
-  // A successful Read makes either mutation strategy valid. Successful Edit
-  // and Write calls keep the authored file known for subsequent mutations.
+  // A successful Read makes either mutation strategy valid. A successful Bash
+  // read does too, but only when an explicit file argument and returned current
+  // content corroborate one another. Successful Edit and Write calls keep the
+  // authored file known for subsequent mutations.
   pi.on("tool_result", async (event, ctx) => {
     const name = String((event as any).toolName ?? "").toLowerCase();
     if ((event as any).isError) return;
+
+    if (name === "bash") {
+      const command = ((event as any).input ?? {})?.command;
+      if (typeof command !== "string") return;
+      const output = ((event as any).content ?? [])
+        .filter((part: any) => part?.type === "text" && typeof part.text === "string")
+        .map((part: any) => part.text)
+        .join("\n");
+      for (const file of shellReadCandidates(command, ctx.cwd)) {
+        if (shellOutputShowsFile(output, file)) knownFiles.add(file);
+      }
+      return;
+    }
 
     if (name !== "read" && name !== "edit" && name !== "write") return;
     const resolved = resolveToolPath(

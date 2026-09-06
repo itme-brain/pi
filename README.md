@@ -58,7 +58,7 @@ settings.json pi settings
 
 | | |
 |---|---|
-| `write-guard` | Requires Read before structured Edit or Write calls on existing files |
+| `write-guard` | Requires current file content from Read or a corroborated shell read before Edit/Write |
 | `skill-inject` | Loads `skills/tools/*.md` based on intent |
 | `knowledge-inject` | Loads `skills/knowledge/*.md` based on relevance |
 | `extra-tools` | Bounded file glob with broad-search steering |
