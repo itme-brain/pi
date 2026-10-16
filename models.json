@@ -11,7 +11,7 @@
           "name": "Qwen3.8-Flash-Next",
           "reasoning": true,
           "input": ["text"],
-          "contextWindow": 131072,
+          "contextWindow": 262144,
           "maxTokens": 131072,
           "cost": {
             "input": 0,
