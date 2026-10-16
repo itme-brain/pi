@@ -6,33 +6,6 @@
       "api": "openai-completions",
       "models": [
         {
-          "id": "Qwen3.8-27B",
-          "name": "Qwen3.8-27B",
-          "reasoning": true,
-          "input": ["text", "image"],
-          "contextWindow": 262144,
-          "maxTokens": 262144,
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0
-          },
-          "thinkingLevelMap": {
-            "off": "none",
-            "minimal": null,
-            "low": "low",
-            "medium": "medium",
-            "high": "xhigh",
-            "xhigh": null,
-            "max": null
-          },
-          "compat": {
-            "supportsReasoningEffort": true,
-            "thinkingFormat": "qwen-chat-template"
-          }
-        },
-        {
           "id": "Qwen3.8-Flash-Next",
           "name": "Qwen3.8-Flash-Next",
           "reasoning": true,
