@@ -13,7 +13,6 @@
   "treeFilterMode": "default",
   "theme": "dark",
   "packages": [
-    "npm:pi-mcp-adapter",
     "npm:@aaronkyriesenbach/pi-frozen-defaults"
   ],
   "terminal": {

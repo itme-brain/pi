@@ -2,8 +2,9 @@
   "mcpServers": {
     "web-search": {
       "url": "https://ai.ramos.codes/mcp/web-search",
-      "auth": "bearer",
-      "bearerTokenEnv": "LLAMA_API_KEY"
+      "headers": {
+        "Authorization": "Bearer ${LLAMA_API_KEY}"
+      }
     }
   }
 }
