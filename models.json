@@ -1,9 +1,10 @@
 {
   "providers": {
-    "llama.cpp": {
+    "radiance": {
       "name": "ai.ramos.codes",
       "baseUrl": "https://ai.ramos.codes/v1",
       "api": "openai-completions",
+      "apiKey": "${LLAMA_API_KEY}",
       "models": [
         {
           "id": "Qwen3.8-Flash-Next",

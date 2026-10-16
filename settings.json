@@ -19,6 +19,11 @@
     "showTerminalProgress": false
   },
   "enabledModels": [
-    "llama.cpp/*"
-  ]
+    "radiance/*"
+  ],
+  "extensions": [
+    "-builtin:llama.cpp"
+  ],
+  "defaultProvider": "radiance",
+  "defaultModel": "Qwen3.8-Flash-Next"
 }
