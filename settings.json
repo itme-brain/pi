@@ -12,9 +12,6 @@
   "doubleEscapeAction": "tree",
   "treeFilterMode": "default",
   "theme": "dark",
-  "packages": [
-    "npm:@aaronkyriesenbach/pi-frozen-defaults"
-  ],
   "terminal": {
     "showTerminalProgress": false
   },

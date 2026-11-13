@@ -1,44 +1,21 @@
 # pi
 
-Personal config for [pi](https://github.com/itme-brain/pi-mono), tuned for small local models.
+Personal config for [Pi](https://github.com/earendil-works/pi), tuned for local models.
 
 ## Setup
 
-```bash
-git clone git@github.com:itme-brain/pi.git ~/.pi/agent
-git clone https://github.com/itme-brain/pi-mono ~/.pi/harness
-cd ~/.pi/harness
-npm install
-npm --prefix packages/tui run build
-npm --prefix packages/ai run build
-npm --prefix packages/agent run build
-npm --prefix packages/coding-agent run build
-npm install -g ./packages/coding-agent
-pi install npm:pi-mcp-adapter
-```
+Enable `modules.user.pi` in Home Manager. The CLI comes from
+`pkgs.unstable.pi-coding-agent`; its version is controlled by `flake.lock`.
+Update it with `nix flake update nixpkgs-unstable`, then rebuild the system.
+The generated settings point Pi's package manager at upstream npm without
+adding Node to the user profile.
 
-Harness remotes:
-
-```text
-origin    git@github.com:itme-brain/pi-mono
-upstream  https://github.com/badlogic/pi-mono.git
-```
-
-Review and pull upstream through the fork:
+Activation syncs this directory to `~/.pi/agent`, preserving the runtime files
+listed in `.gitignore`. The `pi-extension-dependencies` user service installs
+local extension dependencies with upstream Node.js after login. To rerun it:
 
 ```bash
-cd ~/.pi/harness
-git fetch upstream
-git diff main..upstream/main -- packages/coding-agent packages/agent packages/ai packages/tui
-git merge --ff-only upstream/main
-git push origin main
-npm install
-npm --prefix packages/tui run build
-npm --prefix packages/ai run build
-npm --prefix packages/agent run build
-npm --prefix packages/coding-agent run build
-npm install -g ./packages/coding-agent
-git restore packages/ai/src/models.generated.ts
+systemctl --user restart pi-extension-dependencies.service
 ```
 
 Required env vars:
